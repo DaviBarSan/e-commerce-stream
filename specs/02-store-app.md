@@ -28,25 +28,25 @@ A working e-commerce store that gives realistic user journeys for the clickstrea
 ```
 services/
   store_backend/
-    app/  (routers, models, db, telemetry hooks)
-    seed/ (catalog + users seed)
-    tests/
+    store_backend/  (routers, models, db, telemetry hooks, seed)
+    pyproject.toml  (uv workspace member)
     Dockerfile
   store_frontend/
     app/
+    pyproject.toml  (uv workspace member)
     Dockerfile
 ```
 
 ## 5. Data model (`store` database)
 | Table | Key columns |
 |---|---|
-| `products` | `product_id`, `sku`, `name`, `category`, `price`, `image_url` |
+| `products` | `product_id`, `sku`, `name`, `category`, `price_minor`, `currency`, `image_url` |
 | `users` | `user_id`, `email`, `created_at` |
 | `carts` | `cart_id`, `user_id`, `session_id`, `status` (`open` / `converted` / `abandoned`) |
-| `cart_items` | `cart_id`, `product_id`, `quantity`, `unit_price` |
-| `orders` | `order_id`, `cart_id`, `user_id`, `total`, `created_at` |
+| `cart_items` | `cart_id`, `product_id`, `quantity`, `unit_price_minor`, `currency` |
+| `orders` | `order_id`, `cart_id`, `user_id`, `total_minor`, `currency`, `created_at` |
 
-The seed is idempotent, and its size is set by configuration (default: about 200 products in 8 categories).
+Money is stored as an integer amount in minor units plus a currency, like the event contract (spec 04 §3.2). The tables are created by SQLAlchemy (`metadata.create_all()`), without a migration tool; local schema changes are applied by recreating the environment. The seed is idempotent, and its size is set by configuration (default: about 200 products in 8 categories).
 
 ## 6. API (v1)
 | Method + path | Purpose | Emits `event_type` |
@@ -63,6 +63,7 @@ The seed is idempotent, and its size is set by configuration (default: about 200
 
 ### Session and user identity
 - Every tracked call carries an `Idempotency-Key` header, one per user action (a retry of the same action reuses it). The backend derives the event's `event_id` from it (D13, spec 04 §3.4), and generates a key when it's missing.
+- The client may send `X-Page-Url`, the storefront page the action happened on. Without it, the backend uses a standard storefront path for the endpoint.
 - The client sends the `X-Session-Id` and `X-User-Id` headers. The frontend creates them once per browser session, and bots create one per simulated user.
 - If they're missing, the backend creates them and returns them in the response headers.
 - The canonical list of event types is defined in spec 04.

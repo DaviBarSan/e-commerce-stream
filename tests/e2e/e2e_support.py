@@ -212,3 +212,75 @@ def read_messages(bootstrap, topic, start_offsets, wanted_event_ids, timeout=60)
     finally:
         consumer.close()
     return found
+
+
+def wait_container_healthy(container, timeout=180):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        status = run(["docker", "inspect", "-f", "{{.State.Health.Status}}", container]).stdout.strip()
+        if status == "healthy":
+            return
+        time.sleep(2)
+    raise AssertionError(f"{container} not healthy after {timeout}s")
+
+
+# --- store API on the host (store-api; containers come with store-deploy) ------------------
+
+class ApiServer:
+    """Runs `uvicorn store_backend.main:app` on the host with the contract env, logging to a file."""
+
+    def __init__(self, env, log_path, port=8000):
+        self.env = {**os.environ, **env}
+        self.log_path = Path(log_path)
+        self.port = port
+        self.url = f"http://127.0.0.1:{port}"
+        self.proc = None
+
+    def start(self, timeout=60):
+        import sys
+        import time
+
+        import httpx
+
+        self._log = open(self.log_path, "ab")
+        flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        self.proc = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "store_backend.main:app", "--host", "127.0.0.1", "--port", str(self.port)],
+            cwd=REPO_ROOT, env=self.env, stdout=self._log, stderr=subprocess.STDOUT, creationflags=flags,
+        )
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.proc.poll() is not None:
+                raise AssertionError(f"API exited early:\n{self.log_path.read_text(errors='replace')}")
+            try:
+                if httpx.get(f"{self.url}/health", timeout=2).status_code == 200:
+                    return self
+            except httpx.TransportError:
+                pass
+            time.sleep(0.5)
+        raise AssertionError(f"API not healthy after {timeout}s:\n{self.log_path.read_text(errors='replace')}")
+
+    def stop(self, timeout=30):
+        """Graceful stop (lifespan shutdown flushes the producer); kill if it doesn't exit."""
+        import signal
+
+        if self.proc is None or self.proc.poll() is not None:
+            return
+        self.proc.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
+        try:
+            self.proc.wait(timeout)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait(10)
+        self._log.close()
+
+    def log(self):
+        return self.log_path.read_text(errors="replace")
+
+
+def seed_store(env):
+    import sys
+
+    return run([sys.executable, "-m", "store_backend.seed"], env={**os.environ, **env}, check=True)

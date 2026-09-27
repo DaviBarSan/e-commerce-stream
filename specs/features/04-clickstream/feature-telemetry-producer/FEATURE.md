@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| In progress | [04](../../../04-clickstream.md) | T2.2–T2.5 | event-contract, infra-local-resources | 2 |
+| Done | [04](../../../04-clickstream.md) | T2.2–T2.5 | event-contract, infra-local-resources | 2 |
 
 ## 1. Goal
 Give the store backend one cloud-agnostic way to publish contract events: `get_producer()` returns an `EventProducer` for the backend named by `STREAMING_BACKEND`. The Kafka driver delivers at least once, keeps each session in order, and never breaks a user request when the broker is down.
@@ -57,4 +57,4 @@ Give the store backend one cloud-agnostic way to publish contract events: `get_p
 Both flows pass through `make e2e FEATURE=telemetry-producer`, and the `event-contract` flows still pass.
 
 ## 7. Open items
-None.
+- Marked `Done` with the regression reruns of `infra-local-platform` and `infra-local-resources` skipped, by decision (2026-09-27). Their flows are affected by the Makefile Terraform retry and the new `make down` at the start of the `infra-local-platform` flows; rerun them the next time either feature is touched.

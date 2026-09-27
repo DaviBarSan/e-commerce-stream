@@ -1,6 +1,6 @@
 output "bootstrap_host" {
   description = "Bootstrap servers for clients on the host."
-  value       = "localhost:${var.host_port}"
+  value       = "127.0.0.1:${var.host_port}"
   depends_on  = [docker_container.kafka]
 }
 

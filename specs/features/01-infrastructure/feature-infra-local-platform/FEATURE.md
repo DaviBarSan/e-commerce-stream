@@ -21,7 +21,7 @@ Use Terraform (docker provider) to bring up the local runtime platform: the Dock
 - **`modules/local/kafka`:**
   - Kafka container:
     - Image `apache/kafka:<pinned>`, running KRaft combined mode (broker + controller) as a single node.
-    - Listeners: `INTERNAL://kafka:19092`, `EXTERNAL://localhost:9092`, `CONTROLLER://kafka:9093`.
+    - Listeners: `INTERNAL://kafka:19092`, `EXTERNAL://127.0.0.1:9092`, `CONTROLLER://kafka:9093`.
     - Replication factor and min ISR set to 1.
     - Automatic topic creation turned **off**.
   - Kafka UI container: `provectuslabs/kafka-ui:<pinned>` on `:8085`, pointed at `kafka:19092`.
@@ -47,7 +47,7 @@ Use Terraform (docker provider) to bring up the local runtime platform: the Dock
 **E2E-1: platform comes up and can be reached.**
 1. Apply `envs/local/10-platform`.
 2. Every container reports healthy.
-3. From the host, a Kafka admin client can list the cluster metadata on `localhost:9092`.
+3. From the host, a Kafka admin client can list the cluster metadata on `127.0.0.1:9092`. Host-facing endpoints use `127.0.0.1`, not `localhost`: the ports are bound to IPv4 only, and `localhost` resolves to `::1` first, which stalls clients on Windows.
 4. A throwaway container on `${project_name}-net` reaches `kafka:19092`.
 5. The Kafka UI returns HTTP 200 on `:8085`.
 6. A Postgres client on the host connects to `localhost:<postgres_port>` with the admin outputs and runs `SELECT 1`.
