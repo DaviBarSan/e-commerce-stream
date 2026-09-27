@@ -4,11 +4,13 @@ import urllib.request
 import pytest
 from confluent_kafka.admin import AdminClient
 
-from e2e_support import LOCAL_PLATFORM as STACK, REPO_ROOT, pg_connect, project_prefix, run, versions
+from e2e_support import LOCAL_PLATFORM as STACK, REPO_ROOT, make, pg_connect, project_prefix, run, versions
 
 
 @pytest.fixture(scope="module")
 def platform():
+    # Start clean: these flows destroy 10-platform, which must never happen under a live 20-resources.
+    make("down")
     STACK.init()
     STACK.apply()
     return STACK.outputs()

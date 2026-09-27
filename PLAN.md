@@ -101,7 +101,7 @@ How to read the tables:
 | T2.1 ✅ | Event schema v1 (JSON Schema) and Python model | 04 | T0.1 | The schema file exists, and the model round-trips valid samples and rejects invalid ones |
 | T2.2 | `telemetry/base.py`: the `EventProducer` abstract base class and factory | 04 | T2.1 | Unit tests pass using an in-memory fake driver |
 | T2.3 | `telemetry/kafka_driver.py` | 04 | T2.2, T1.6 | An integration test publishes to local Kafka and the event is consumed |
-| T2.4 | `telemetry/gcp_driver.py` (stub that fails with a clear error until Phase 7) | 04 | T2.2 | Selecting `pubsub` raises a clear "not provisioned" error |
+| T2.4 | `telemetry/gcp_driver.py` (stub that fails with a clear error until Phase 8) | 04 | T2.2 | Selecting `pubsub` raises a clear "not provisioned" error |
 | T2.5 | `telemetry/aws_driver.py` (standby stub) | 04 | T2.2 | Same as T2.4 |
 
 ### Phase 3: Store app
