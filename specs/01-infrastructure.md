@@ -125,7 +125,7 @@ Free-tier guardrails:
 | Target | Behavior |
 |---|---|
 | `make help` | Lists the targets |
-| `make doctor` | Checks the Terraform, Docker, `uv` and `make` versions against `versions.env` |
+| `make doctor` | Checks the Terraform (exact), Docker, `make`, `uv` and Python (minimum) versions against `versions.env` |
 | `make init ENV=local` | Runs `terraform init` on every stack for that environment |
 | `make plan ENV=local` | Runs `plan` on every stack |
 | `make up ENV=local` | Applies `10-platform` then `20-resources`, then runs `make env` |
@@ -133,6 +133,7 @@ Free-tier guardrails:
 | `make env ENV=local` | Writes `.env.local` from the outputs |
 | `make smoke ENV=local` | Runs `scripts/smoke` |
 | `make fmt` / `make validate` | Runs `terraform fmt -recursive` / `validate` on every stack |
+| `make e2e FEATURE=<id>` | Runs a feature's two E2E flows: `uv run pytest tests/e2e/<id>` |
 
 `ENV` defaults to `local`. The Makefile runs through Git Bash on Windows.
 

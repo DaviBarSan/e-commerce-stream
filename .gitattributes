@@ -1,0 +1,4 @@
+# Files read by bash/make must keep LF endings on Windows checkouts.
+*.sh          text eol=lf
+Makefile      text eol=lf
+versions.env  text eol=lf

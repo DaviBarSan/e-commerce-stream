@@ -37,7 +37,7 @@ Both flows are automated with Playwright. Playwright is test tooling here, not t
 3. The number of events equals the number of tracked API calls. A reload or websocket reconnect creates no extra `add_to_cart`.
 
 ## 6. Definition of done
-Both flows pass through `make e2e FEATURE=F02.2`.
+Both flows pass through `make e2e FEATURE=store-frontend`.
 
 ## 7. Open items
 - Avoiding duplicate events on the frontend side (Reflex reconnects and retried handlers). This is in the parking lot; E2E-2 checks the current behavior.

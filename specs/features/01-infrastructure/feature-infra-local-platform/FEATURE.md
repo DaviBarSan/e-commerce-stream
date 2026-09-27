@@ -53,7 +53,7 @@ Use Terraform (docker provider) to bring up the local runtime platform: the Dock
 3. The `pgdata` volume is removed, unless the variable `keep_data = true` is set, in which case it's kept and reused on the next apply.
 
 ## 6. Definition of done
-Both flows pass through `make e2e FEATURE=F01.2`, and `terraform fmt` and `validate` are clean.
+Both flows pass through `make e2e FEATURE=infra-local-platform`, and `terraform fmt` and `validate` are clean.
 
 ## 7. Open items
 None.

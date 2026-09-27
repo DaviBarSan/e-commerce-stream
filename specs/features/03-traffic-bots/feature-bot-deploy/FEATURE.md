@@ -36,7 +36,7 @@ Package the bot as an image and run it on demand, managed by Terraform, with `ma
 2. Run `make bot-stop` in the middle of the run. The container is stopped and removed, and the other platform containers aren't touched.
 
 ## 6. Definition of done
-Both flows pass through `make e2e FEATURE=F03.2`.
+Both flows pass through `make e2e FEATURE=bot-deploy`.
 
 ## 7. Open items
 None.

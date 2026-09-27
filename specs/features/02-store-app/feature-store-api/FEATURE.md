@@ -51,7 +51,7 @@ A stateless FastAPI store backend on top of the `store` database. It serves the 
 4. Rerun the seed. The product count doesn't change.
 
 ## 6. Definition of done
-Both flows pass through `make e2e FEATURE=F02.1`, and `/docs` serves the OpenAPI spec.
+Both flows pass through `make e2e FEATURE=store-api`, and `/docs` serves the OpenAPI spec.
 
 ## 7. Open items
 - Where `product_id` goes in events (parking lot). Until then it stays in `metadata_json`.

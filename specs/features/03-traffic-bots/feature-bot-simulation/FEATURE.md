@@ -40,7 +40,7 @@ Locust-based simulation of the three personas against the store API, with traffi
 2. The `promo_spike` profile gives a peak event rate at least 3× the `steady` baseline, measured from the topic offsets.
 
 ## 6. Definition of done
-Both flows pass through `make e2e FEATURE=F03.1`.
+Both flows pass through `make e2e FEATURE=bot-simulation`.
 
 ## 7. Open items
 - Whether browser mode (Playwright) is needed (spec 03 §10).

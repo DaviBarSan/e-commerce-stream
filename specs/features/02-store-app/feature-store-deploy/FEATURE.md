@@ -42,7 +42,7 @@ Package the store API and the Reflex frontend as images, and run them as part of
 2. Run `make down` (keeping data) and then `make up`. The product count hasn't changed: the seed is idempotent and creates no duplicates.
 
 ## 6. Definition of done
-Both flows pass through `make e2e FEATURE=F02.3`.
+Both flows pass through `make e2e FEATURE=store-deploy`.
 
 ## 7. Open items
 - Where the service containers live: `10-platform`, or a separate `30-services` stack. Decide during implementation and record the choice in spec 01.
