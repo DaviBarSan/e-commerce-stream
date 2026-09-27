@@ -5,6 +5,11 @@ SHELL := bash
 
 include versions.env
 
+# Pinned images reach Terraform as variables.
+export TF_VAR_kafka_image    := $(KAFKA_IMAGE)
+export TF_VAR_kafka_ui_image := $(KAFKA_UI_IMAGE)
+export TF_VAR_postgres_image := $(POSTGRES_IMAGE)
+
 ENV ?= local
 TF_ENV_DIR := terraform/envs/$(ENV)
 # Stacks in apply order; `down` walks them in reverse.
