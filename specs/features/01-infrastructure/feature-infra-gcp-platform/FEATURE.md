@@ -15,7 +15,7 @@ Provision the GCP environment behind the same environment contract as local, so 
   - The `envs/gcp` stack and `.env.gcp`
   - `make smoke ENV=gcp`
 - **Out:**
-  - The Pub/Sub driver code (F04.3)
+  - The Pub/Sub driver code (telemetry-pubsub)
   - The ingestion path (F05.6)
   - The dbt BigQuery target (F06.4)
 
@@ -36,7 +36,7 @@ Provision the GCP environment behind the same environment contract as local, so 
 
 ## 4. Interfaces
 - **Consumes:** the contract inputs and the GCP project ID.
-- **Produces:** the contract outputs with GCP values, used by F04.3, F05.6 and F06.4.
+- **Produces:** the contract outputs with GCP values, used by telemetry-pubsub, F05.6 and F06.4.
 
 ## 5. E2E test flows
 **E2E-1: GCP comes up.**

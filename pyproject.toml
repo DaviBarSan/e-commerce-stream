@@ -4,7 +4,17 @@ version = "0.1.0"
 description = "Cloud-agnostic clickstream analytics pipeline"
 # Keep in line with PYTHON_MIN_VERSION in versions.env.
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "jsonschema[format-nongpl]>=4.26",
+    "pydantic>=2.13",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["telemetry"]
 
 [dependency-groups]
 dev = [

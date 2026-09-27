@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "event_id": "0b6f4a53-3d5c-5b7e-8f21-1a2b3c4d5e04",
+  "event_type": "add_to_cart",
+  "event_ts": "2026-09-27T14:03:11.412Z",
+  "produced_at": "2026-09-27T14:03:11.430Z",
+  "user_id": "anon-7d9e2c1a",
+  "session_id": "s-51c0f3",
+  "page_url": "/products/42",
+  "product_id": null,
+  "cart_id": "c-88a1",
+  "properties": {
+    "quantity": 1,
+    "unit_price": {
+      "amount_minor": 1999,
+      "currency": "EUR"
+    }
+  }
+}

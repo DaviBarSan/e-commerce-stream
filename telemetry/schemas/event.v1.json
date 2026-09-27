@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clickstream.local/schemas/event.v1.json",
+  "title": "Clickstream event v1",
+  "description": "One event emitted by the store backend (spec 04 §3-§4). Unknown fields are allowed so additive changes stay within v1.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "event_ts",
+    "produced_at",
+    "user_id",
+    "session_id",
+    "page_url",
+    "properties"
+  ],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": {
+      "enum": ["page_view", "search", "product_view", "add_to_cart", "remove_from_cart", "checkout_start", "purchase"]
+    },
+    "event_ts": { "$ref": "#/$defs/utc_timestamp" },
+    "produced_at": { "$ref": "#/$defs/utc_timestamp" },
+    "user_id": { "$ref": "#/$defs/id" },
+    "anonymous_id": { "$ref": "#/$defs/nullable_id" },
+    "session_id": { "$ref": "#/$defs/id" },
+    "page_url": { "type": "string", "minLength": 1 },
+    "product_id": { "$ref": "#/$defs/nullable_id" },
+    "cart_id": { "$ref": "#/$defs/nullable_id" },
+    "order_id": { "$ref": "#/$defs/nullable_id" },
+    "properties": { "type": "object" },
+    "context": { "type": ["object", "null"] }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "event_type": { "const": "page_view" } } },
+      "then": {
+        "properties": {
+          "properties": {
+            "required": ["page"],
+            "properties": { "page": { "enum": ["home", "catalog", "cart"] } }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "search" } } },
+      "then": {
+        "properties": {
+          "properties": {
+            "required": ["query", "results_count"],
+            "properties": {
+              "query": { "type": "string" },
+              "results_count": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "product_view" } } },
+      "then": {
+        "required": ["product_id"],
+        "properties": {
+          "product_id": { "$ref": "#/$defs/id" },
+          "properties": {
+            "required": ["category", "price"],
+            "properties": {
+              "category": { "type": "string", "minLength": 1 },
+              "price": { "$ref": "#/$defs/money" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "add_to_cart" } } },
+      "then": {
+        "required": ["product_id", "cart_id"],
+        "properties": {
+          "product_id": { "$ref": "#/$defs/id" },
+          "cart_id": { "$ref": "#/$defs/id" },
+          "properties": {
+            "required": ["quantity", "unit_price"],
+            "properties": {
+              "quantity": { "type": "integer", "minimum": 1 },
+              "unit_price": { "$ref": "#/$defs/money" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "remove_from_cart" } } },
+      "then": {
+        "required": ["product_id", "cart_id"],
+        "properties": {
+          "product_id": { "$ref": "#/$defs/id" },
+          "cart_id": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "checkout_start" } } },
+      "then": {
+        "required": ["cart_id"],
+        "properties": {
+          "cart_id": { "$ref": "#/$defs/id" },
+          "properties": {
+            "required": ["items_count", "cart_total"],
+            "properties": {
+              "items_count": { "type": "integer", "minimum": 1 },
+              "cart_total": { "$ref": "#/$defs/money" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "event_type": { "const": "purchase" } } },
+      "then": {
+        "required": ["cart_id", "order_id"],
+        "properties": {
+          "cart_id": { "$ref": "#/$defs/id" },
+          "order_id": { "$ref": "#/$defs/id" },
+          "properties": {
+            "required": ["total"],
+            "properties": { "total": { "$ref": "#/$defs/money" } }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": { "type": "string", "minLength": 1 },
+    "nullable_id": { "type": ["string", "null"], "minLength": 1 },
+    "utc_timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "money": {
+      "type": "object",
+      "required": ["amount_minor", "currency"],
+      "properties": {
+        "amount_minor": { "type": "integer", "minimum": 0 },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+      }
+    }
+  }
+}

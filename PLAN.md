@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); T2.1 done (`event-contract`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -25,6 +25,10 @@ A cloud-agnostic clickstream analytics pipeline. An e-commerce store and traffic
 | D7 | AWS free tier and account terms are on standby until a later iteration. |
 | D8 | Upstash is dropped. |
 | D9 | The store app is **Reflex (frontend) + FastAPI (store backend API)**. |
+| D10 | **`product_id` is a top-level event field** (v1), required for product event types. The other journey join keys, `cart_id` and `order_id`, are top-level too. Event-type details stay in the typed `properties`. Closes the parking-lot item (spec 04). |
+| D11 | **Raw staging table = hot fields as columns + the full payload.** Columns: `event_id` (primary key, inserts use `ON CONFLICT DO NOTHING`), `schema_version`, `event_type`, `event_ts`, `produced_at`, `ingested_at`, `session_id`, `user_id`, `anonymous_id`, `product_id`, `cart_id`, `order_id`, `source_topic`, `source_partition`, `source_offset`, and `payload` (JSONB on Postgres, JSON on BigQuery). Closes the T5.1 decision (spec 05). |
+| D12 | **Cross-database JSON: one small `json_get(column, path, type)` macro + one staging model per event type.** The macro dispatches on `target.type` (Postgres `#>>` with a cast, BigQuery `JSON_VALUE` with `SAFE_CAST`). Each event type gets a staging model that flattens its `properties` (for example `stg_events__add_to_cart`), so intermediate models and marts stay ANSI SQL. Closes the T6.2 decision (spec 06). |
+| D13 | **Deterministic `event_id`:** a UUIDv5 of the request's idempotency key plus the `event_type`. The frontend sends an `Idempotency-Key` header with each user action, and the backend derives `event_id` from it, so a retried request yields the same `event_id` and is dropped by the raw table's primary key (and by `stg_clickstream`). Closes the frontend duplicate-events item (spec 02, spec 04). |
 
 ## 3. Environments
 
@@ -94,7 +98,7 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T2.1 | Event schema v1 (JSON Schema) and Python model | 04 | T0.1 | The schema file exists, and the model round-trips valid samples and rejects invalid ones |
+| T2.1 ✅ | Event schema v1 (JSON Schema) and Python model | 04 | T0.1 | The schema file exists, and the model round-trips valid samples and rejects invalid ones |
 | T2.2 | `telemetry/base.py`: the `EventProducer` abstract base class and factory | 04 | T2.1 | Unit tests pass using an in-memory fake driver |
 | T2.3 | `telemetry/kafka_driver.py` | 04 | T2.2, T1.6 | An integration test publishes to local Kafka and the event is consumed |
 | T2.4 | `telemetry/gcp_driver.py` (stub that fails with a clear error until Phase 7) | 04 | T2.2 | Selecting `pubsub` raises a clear "not provisioned" error |
@@ -123,7 +127,7 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T5.1 | Raw staging table design **(deferred decision: columns)** | 05 | T2.1 | The columns decision is recorded in spec 05 |
+| T5.1 | Raw staging table per D11 | 05 | T2.1 | The table exists with the D11 columns, and D11 is reflected in spec 05 |
 | T5.2 | Streaming consumer: Kafka to Postgres micro-batches, committing offsets only after a successful write | 05 | T5.1, T2.3 | Events show up in raw staging, with no data loss after a restart |
 | T5.3 | Consumer Docker image and `modules/local/consumer` | 01, 05 | T5.2 | The consumer runs under `make up` |
 | T5.4 | Dead-letter handling for invalid events | 05, 04 | T5.2 | Invalid events go to the DLQ topic, and the pipeline keeps running |
@@ -133,7 +137,7 @@ How to read the tables:
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
 | T6.1 | dbt project and `local` profile (`dbt-postgres`) | 06 | T1.5 | `dbt debug` passes |
-| T6.2 | Cross-database JSON extraction macro **(deferred decision: approach)** | 06 | T6.1, T5.1 | The macro compiles on Postgres |
+| T6.2 | Cross-database `json_get` macro per D12 | 06 | T6.1, T5.1 | The macro compiles on Postgres |
 | T6.3 | `stg_clickstream`: parse and deduplicate on `event_id` | 06 | T6.2, T5.2 | `unique` and `not_null` tests pass |
 | T6.4 | `int_sessions`: sessionization with a 30-minute inactivity window | 06 | T6.3 | The session tests pass on fixture data |
 | T6.5 | Marts: `fct_events`, `fct_conversion_funnels`, `dim_users` | 06 | T6.4 | `dbt build` passes |
@@ -177,10 +181,33 @@ Tasks that can run in parallel once their dependencies are met:
 
 | Item | Where it will be decided | Blocks |
 |---|---|---|
-| Raw staging table columns | spec 05 | T5.1 |
-| Where `product_id` lives (top-level field or `metadata_json`) | spec 04 | T2.1 is final at v1, and a later change means v2 |
-| Approach for the cross-database JSON macro | spec 06 | T6.2 |
-| Avoiding duplicate events from the frontend (Reflex reconnects or retried handlers) | spec 02 | T3.4 (partly handled by emitting events from the backend) |
 | AWS free tier and account terms | spec 01 | Phase 9 |
 | GCP orchestration: Composer or self-hosted Airflow | spec 05 | T8.6 |
 | GCP ingestion: Cloud Run consumer or BigQuery subscription | spec 05 | T8.4 |
+| Stream processor technology (Bytewax / Quix Streams, Kafka Streams / ksqlDB, Flink; Dataflow on GCP) | new spec, future iteration | Journeys 3 and 9 (§9) |
+| Derived-events contract and topic `clickstream.derived.v1` | spec 04, future iteration | Journeys 3 and 9 (§9) |
+| Scope of journey 10: order status events vs CDC from `store` | spec 02 / 05, future iteration | Journey 10 (§9) |
+| Bot ground-truth labels: `context.traffic {synthetic, persona}` in events, or a separate bot run log | spec 03 / 04, future iteration | Journeys 2–9 validation (§9) |
+
+## 9. User journeys
+
+The MVP delivers **journey 1** end to end: the events, API, bots, ingestion and marts in Phases 2–7. Journeys 2–10 are a **future iteration**. They are recorded here so the v1 event contract stays open to them: new event types, the `context` block and new `properties` keys are additive changes within v1 (spec 04 §8).
+
+| # | Journey | Status | What it teaches | Needs (by layer) |
+|---|---|---|---|---|
+| 1 | Discovery to purchase: search → product view → add to cart → purchase | **MVP** | Ordered funnels, conversion, drop-off | Covered by Phases 2–7 |
+| 2 | Search quality: zero results, reworded search, click on result #N | Future | Sequences within a session, click-through by position | Event `search_result_click {query, position}`; API passes the click's source and position; bot persona with zero-result and reworded searches; dbt click-through model |
+| 3 | Cart abandonment and recovery | Future | Stateful timers, inactivity gaps, derived events | Stream processor; derived-events topic `clickstream.derived.v1` (`cart_abandoned`); bot persona that returns and recovers; batch version in dbt from `int_sessions` |
+| 4 | Navigation paths | Future | Path analysis, per-key ordering | `page_view` for every page with `page_type` and `referrer_page`; API emits for home and category; less linear bot journeys; dbt path model |
+| 5 | Anonymous to logged-in (identity stitching) | Future | Identity resolution, rewriting history, sessions across days | `anonymous_id` on every event; `login` / `sign_up` events and endpoints; bot persona that converts from anonymous; dbt identity map and stitched `dim_users` |
+| 6 | Campaign attribution | Future | First-touch and last-touch attribution, attribution windows | `context.utm` and referrer; the API accepts them; the `promo_spike` profile tags its traffic with a campaign; dbt attribution model |
+| 7 | Checkout friction | Future | Step funnel, time per step, retries, failure reasons | `checkout_step {step}`, `payment_failed {reason}`; checkout steps and simulated payment failures in the API; bot persona with planted failure rate; dbt step funnel |
+| 8 | Comparison shopping | Future | Windowed aggregation per session and category | Events already sufficient; bot persona that compares; dbt comparison-set model |
+| 9 | Live trends and anomalies | Future (stretch) | Window types, watermarks, late events, anomaly thresholds | Stream processor; derived-events topic; `context.traffic` bot label |
+| 10 | Post-purchase (shipped, delivered, returned) | Future (out of scope for now) | Joining streams with order data, CDC | Order status events or CDC from the `store` database |
+
+Principles for the future iteration:
+- **Planted ground truth.** Each journey gets a bot persona with known parameters (for example a 30% recovery rate, or a 15% first-attempt payment failure rate). The marts must recover those numbers, and that check becomes the journey's E2E flow.
+- **Additive contract.** Journey fields go into `context`, `properties` and new event types without breaking v1.
+
+Future-iteration decisions are in the parking lot (§8).

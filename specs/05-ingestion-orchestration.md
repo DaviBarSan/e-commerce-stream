@@ -34,7 +34,7 @@ Kafka topic clickstream.events.v1
 |---|---|
 | Batching | Flush every `INGEST_BATCH_SIZE` messages (default 500) or every `INGEST_FLUSH_SECONDS` (default 5 s), whichever comes first |
 | Commit | Auto-commit is off. Offsets are committed **only after** the database transaction commits (at least once). |
-| Idempotency | The insert tolerates rows that already exist, for example `ON CONFLICT DO NOTHING` on the chosen key (depends on T5.1). `stg_clickstream` in spec 06 deduplicates as well. |
+| Idempotency | The insert uses `ON CONFLICT (event_id) DO NOTHING` (D11). `stg_clickstream` in spec 06 deduplicates as well. |
 | Validation | Every message is checked against the event schema (spec 04). Failures go to the DLQ, and the batch carries on. |
 | Shutdown | On SIGTERM: flush, commit, close |
 | Observability | Structured logs: batch size, lag, DLQ count, write latency |
@@ -49,12 +49,21 @@ services/ingest_consumer/
 ```
 The sink is pluggable, chosen by `WAREHOUSE_BACKEND` (`postgres` / `bigquery`), and follows the same interface pattern as `EventProducer`.
 
-### 5. Raw staging table
-**Deferred (T5.1):** the exact columns. What's already fixed:
-- The table is in the `raw` schema of the `warehouse` database, and is written by the `ingest_writer` role.
-- It stores the **whole original payload** so it can be replayed.
-- It includes ingestion metadata (at least an ingestion timestamp).
-- The design must let dbt deduplicate and parse it the same way on Postgres and BigQuery.
+### 5. Raw staging table (D11)
+The table is in the `raw` schema of the `warehouse` database, is created and written by the `ingest_writer` role, and holds the frequently used fields as columns plus the **whole original payload** (so it can be replayed):
+
+| Column | Type (Postgres / BigQuery) | Source |
+|---|---|---|
+| `event_id` | `uuid` / `STRING`, **primary key** | envelope |
+| `schema_version`, `event_type` | `text` / `STRING` | envelope |
+| `event_ts`, `produced_at` | `timestamptz` / `TIMESTAMP` | envelope |
+| `ingested_at` | `timestamptz` / `TIMESTAMP` | set by the consumer |
+| `session_id`, `user_id`, `anonymous_id` | `text` / `STRING` | envelope (`anonymous_id` nullable) |
+| `product_id`, `cart_id`, `order_id` | `text` / `STRING`, nullable | envelope (D10) |
+| `source_topic`, `source_partition`, `source_offset` | `text`, `int`, `bigint` / `STRING`, `INT64`, `INT64` | broker metadata |
+| `payload` | `jsonb` / `JSON` | the full original event |
+
+Inserts use `ON CONFLICT (event_id) DO NOTHING`, so broker redelivery and retried requests (D13) never create a second row.
 
 ### 6. GCP ingestion (Phase 8, to be decided)
 | Option | Pros | Cons |
@@ -105,6 +114,5 @@ Cloud Composer (managed, costly) or self-hosted Airflow (Cloud Run or a VM). The
 5. End to end (T7.3): events from bot actions show up in the marts within one DAG cycle.
 
 ## 12. Open items
-- The raw table columns (T5.1).
 - `BashOperator` or `DockerOperator` for dbt.
 - The GCP ingestion option (A or B) and the GCP orchestration host.

@@ -15,33 +15,63 @@ Define the **one event contract** and the **telemetry library** that publishes e
 - **Out of scope:** consuming events and landing them in storage (spec 05).
 
 ## 3. Event schema v1
-The schema is JSON Schema (draft 2020-12), stored in `telemetry/schemas/event.v1.json`. The Python model is generated from it or kept in sync with it.
+The schema is JSON Schema (draft 2020-12), stored in `telemetry/schemas/event.v1.json`. It is the source of truth. The Python model in `telemetry/schema.py` mirrors it, and a parity test keeps them in agreement.
 
+### 3.1 Envelope
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `schema_version` | string | yes | `"1"` |
-| `event_id` | string (UUIDv4) | yes | Created by the producer; the key used to deduplicate |
+| `event_id` | string (UUID) | yes | Deterministic (D13): UUIDv5 of the request's idempotency key plus `event_type`, see §3.4. The deduplication key. |
 | `event_type` | enum | yes | See §4 |
-| `event_ts` | string (RFC 3339, UTC) | yes | When the event happened |
+| `event_ts` | string (RFC 3339, UTC, `Z` suffix) | yes | When the action happened (server time, since the backend emits) |
+| `produced_at` | string (RFC 3339, UTC, `Z` suffix) | yes | When the producer serialized the event |
 | `user_id` | string | yes | `anon-<uuid>` for anonymous users |
+| `anonymous_id` | string or null | no | Reserved for identity stitching (journey 5, `PLAN.md` §9) |
 | `session_id` | string | yes | Supplied by the client (spec 02 §6) |
 | `page_url` | string | yes | |
-| `metadata_json` | object | no | Details specific to the event type |
+| `product_id` | string or null | per type | Top-level join key (D10), required for product events (§4) |
+| `cart_id` | string or null | per type | Top-level join key (D10), required for cart events (§4) |
+| `order_id` | string or null | per type | Top-level join key (D10), required for `purchase` |
+| `properties` | object | yes | Details for the event type; required keys per type (§4). Extra keys are allowed (additive). |
+| `context` | object | no | Reserved for the future journeys (`request_id`, UTM, referrer, traffic labels). Free-form in v1. |
 
-**Deferred:** whether `product_id` becomes a top-level field or stays in `metadata_json` (parking lot). Until that's decided, product-related events put `product_id` in `metadata_json`. Making it top-level later would be a v2 change, handled by the versioning rules in §8.
+Unknown top-level fields are allowed, so a producer on a newer v1 (additive) doesn't break an older consumer.
+
+### 3.2 Money
+Amounts are never floats. A money value is `{ "amount_minor": <integer >= 0>, "currency": "<ISO 4217, 3 upper-case letters>" }`, for example `{ "amount_minor": 1999, "currency": "EUR" }` for 19.99 EUR.
+
+### 3.3 Example
+```json
+{
+  "schema_version": "1",
+  "event_id": "2f1c9f0e-3c1a-5b8e-9d7a-6a2d8e4b1c11",
+  "event_type": "add_to_cart",
+  "event_ts": "2026-09-27T14:03:11.412Z",
+  "produced_at": "2026-09-27T14:03:11.430Z",
+  "user_id": "anon-7d9e…",
+  "session_id": "s-51c0…",
+  "page_url": "/products/42",
+  "product_id": "42",
+  "cart_id": "c-88a1…",
+  "properties": { "quantity": 1, "unit_price": { "amount_minor": 1999, "currency": "EUR" } }
+}
+```
+
+### 3.4 Deterministic `event_id` (D13)
+`event_id = uuid5(NAMESPACE, f"{idempotency_key}:{event_type}")`, where `NAMESPACE` is a fixed UUID defined in `telemetry/schema.py`. The frontend and the bots send an `Idempotency-Key` header with every user action (spec 02 §6), and the backend derives `event_id` from it. A retried request gives the same `event_id`, which the raw table's primary key drops (D11). If a request has no key, the backend generates one, so the event is still unique.
 
 ## 4. Event types
-| `event_type` | Typical `metadata_json` |
-|---|---|
-| `page_view` | `{ "page": "home" \| "catalog" \| "cart" }` |
-| `search` | `{ "query": "...", "results_count": n }` |
-| `product_view` | `{ "product_id": "...", "category": "...", "price": x }` |
-| `add_to_cart` | `{ "product_id": "...", "quantity": n, "unit_price": x }` |
-| `remove_from_cart` | `{ "product_id": "..." }` |
-| `checkout_start` | `{ "cart_id": "...", "items_count": n, "cart_total": x }` |
-| `purchase` | `{ "order_id": "...", "cart_id": "...", "total": x }` |
+| `event_type` | Required top-level keys | Required `properties` |
+|---|---|---|
+| `page_view` | none | `page`: `home` \| `catalog` \| `cart` |
+| `search` | none | `query` (string), `results_count` (integer ≥ 0) |
+| `product_view` | `product_id` | `category` (string), `price` (money) |
+| `add_to_cart` | `product_id`, `cart_id` | `quantity` (integer ≥ 1), `unit_price` (money) |
+| `remove_from_cart` | `product_id`, `cart_id` | none |
+| `checkout_start` | `cart_id` | `items_count` (integer ≥ 1), `cart_total` (money) |
+| `purchase` | `cart_id`, `order_id` | `total` (money) |
 
-The analytics funnel is: `search → product_view → add_to_cart → purchase` (spec 06).
+The analytics funnel (journey 1) is: `search → product_view → add_to_cart → purchase` (spec 06). New event types for journeys 2–10 (`PLAN.md` §9) are additive within v1.
 
 ## 5. Producer interface
 ```
@@ -101,5 +131,5 @@ Producer-side validation failures are bugs and raise an error in tests.
 4. Business code can't import any cloud SDK except through `telemetry`.
 
 ## 11. Open items
-- Where `product_id` goes (parking lot).
 - Whether to move to Avro or Protobuf with a schema registry later (not needed for v1).
+- The derived-events contract for the stream processor (future iteration, `PLAN.md` §8).

@@ -51,7 +51,7 @@
 - **Consumes:** the F01.2 outputs.
 - **Produces:**
   - `.env.local`, used by every service feature
-  - The topics used by F02.1, F04.2 and F05.2
+  - The topics used by F02.1, telemetry-producer and F05.2
   - The databases and roles used by F02.1, F05.1, F05.3 and F06.1
 
 ## 5. E2E test flows

@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "event_id": "0b6f4a53-3d5c-5b7e-8f21-1a2b3c4d5e06",
+  "event_type": "checkout_start",
+  "event_ts": "2026-09-27T14:03:11.412Z",
+  "produced_at": "2026-09-27T14:03:11.430Z",
+  "user_id": "anon-7d9e2c1a",
+  "session_id": "s-51c0f3",
+  "page_url": "/checkout",
+  "cart_id": "c-88a1",
+  "properties": {
+    "items_count": 2,
+    "cart_total": {
+      "amount_minor": 3998,
+      "currency": "EUR"
+    }
+  }
+}

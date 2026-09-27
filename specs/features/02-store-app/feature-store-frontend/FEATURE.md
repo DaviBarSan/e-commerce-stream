@@ -40,4 +40,4 @@ Both flows are automated with Playwright. Playwright is test tooling here, not t
 Both flows pass through `make e2e FEATURE=store-frontend`.
 
 ## 7. Open items
-- Avoiding duplicate events on the frontend side (Reflex reconnects and retried handlers). This is in the parking lot; E2E-2 checks the current behavior.
+None. The frontend sends one `Idempotency-Key` per user action and reuses it on retries, so duplicates collapse to one `event_id` (D13). E2E-2 checks it.
