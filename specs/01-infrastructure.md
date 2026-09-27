@@ -65,7 +65,12 @@ The `Mongey/kafka` and `cyrilgdn/postgresql` providers connect to live servers w
 | `EVENTS_DLQ_TOPIC` | `clickstream.events.dlq` | Pub/Sub topic ID |
 | `WAREHOUSE_BACKEND` | `postgres` | `bigquery` |
 | `WAREHOUSE_DSN` / `WAREHOUSE_DATASET` | Postgres DSN for `warehouse` | BigQuery dataset |
-| `STORE_DB_DSN` | Postgres DSN for `store` | Cloud SQL (to be decided) |
+| `WAREHOUSE_RAW_SCHEMA` | `raw` (from the `warehouse_raw_schema` input) | raw dataset name |
+| `STORE_DB_DSN` | Postgres DSN for `store` (role `store_app`) | Cloud SQL (to be decided) |
+| `DBT_WAREHOUSE_DSN` | Postgres DSN for `warehouse` (role `dbt_runner`) | empty (dbt uses its BigQuery profile) |
+| `AIRFLOW_DB_DSN` | Postgres DSN for `airflow` (role `airflow`) | to be decided with GCP orchestration |
+
+`WAREHOUSE_DSN` is the ingestion sink's DSN (role `ingest_writer`). Each role gets its own key, so every service only receives the credentials it needs. A key that doesn't apply to an environment is still written, with an empty value.
 
 Values used inside containers (network hostnames) are passed to the containers directly through Terraform. The `.env` file holds the values to use from the host.
 

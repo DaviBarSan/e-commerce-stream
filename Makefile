@@ -19,6 +19,9 @@ else
 STACKS := $(TF_ENV_DIR)
 endif
 REVERSED_STACKS := $(shell printf '%s\n' $(STACKS) | tac)
+# The last stack writes .env.<ENV> (local_sensitive_file.env).
+ENV_STACK := $(lastword $(STACKS))
+ENV_FILE := .env.$(ENV)
 
 # Fails with "not yet implemented" until every stack of $(ENV) has Terraform files.
 define require_stacks
@@ -44,20 +47,25 @@ plan: ## terraform plan on every stack of ENV
 	@$(require_stacks)
 	@for s in $(STACKS); do terraform -chdir=$$s plan -input=false; done
 
-up: ## Apply every stack of ENV in order, then write .env.<ENV>
+up: ## Apply every stack of ENV in order (writes .env.<ENV>)
 	@$(require_stacks)
 	@for s in $(STACKS); do terraform -chdir=$$s init -input=false && terraform -chdir=$$s apply -input=false -auto-approve; done
-	@$(MAKE) --no-print-directory env ENV=$(ENV)
+	@echo "up: $(ENV_FILE) written"
 
-down: ## Destroy every stack of ENV in reverse order
+down: ## Destroy every stack of ENV in reverse order (full reset)
 	@$(require_stacks)
-	@for s in $(REVERSED_STACKS); do terraform -chdir=$$s destroy -input=false -auto-approve; done
+	@for s in $(REVERSED_STACKS); do \
+	  if ! terraform -chdir=$$s state list 2>/dev/null | grep -q .; then echo "down: $$s has no resources, skipping"; continue; fi; \
+	  terraform -chdir=$$s destroy -input=false -auto-approve; \
+	done
 
-env: ## Write .env.<ENV> from the stack outputs
-	@echo "env: not yet implemented (arrives with infra-local-resources)" >&2; exit 1
+env: ## Regenerate .env.<ENV> from the stack outputs
+	@$(require_stacks)
+	@terraform -chdir=$(ENV_STACK) apply -input=false -auto-approve -target=local_sensitive_file.env
 
 smoke: ## Run the platform smoke test for ENV
-	@echo "smoke: not yet implemented (arrives with infra-local-resources)" >&2; exit 1
+	@[ -f "$(ENV_FILE)" ] || { echo "smoke: $(ENV_FILE) not found; run make up ENV=$(ENV)" >&2; exit 1; }
+	uv run python scripts/smoke/smoke.py "$(ENV_FILE)"
 
 e2e: ## Run a feature's two E2E flows (FEATURE=<feature-id> required)
 	@[ -n "$(FEATURE)" ] || { echo "e2e: FEATURE is required, e.g. make e2e FEATURE=infra-foundations" >&2; exit 1; }
@@ -67,6 +75,6 @@ e2e: ## Run a feature's two E2E flows (FEATURE=<feature-id> required)
 fmt: ## terraform fmt -recursive on terraform/
 	terraform fmt -recursive terraform
 
-validate: ## terraform validate on every stack of ENV
+validate: ## terraform validate on every stack of ENV, plus modules/aws
 	@$(require_stacks)
-	@for s in $(STACKS); do terraform -chdir=$$s init -input=false -backend=false >/dev/null && terraform -chdir=$$s validate; done
+	@for s in $(STACKS) terraform/modules/aws; do echo "validate: $$s"; terraform -chdir=$$s init -input=false -backend=false >/dev/null && terraform -chdir=$$s validate; done
