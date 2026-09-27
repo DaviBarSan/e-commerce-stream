@@ -41,6 +41,7 @@
   - `make env` regenerates `.env.local` with a targeted apply of the `local_file` resource.
   - `make down` destroys `20-resources` then `10-platform`. It is always a full reset: dropping the databases removes the data, so `keep_data` only applies when `10-platform` is destroyed on its own.
   - `make validate` also validates `modules/aws`.
+  - Terraform `plan`/`apply`/`destroy` in the Makefile are retried once: the Mongey/kafka provider intermittently fails with `kafka: broker not connected` (a race in its sarama client) while the broker is healthy. The runs are idempotent, so the retry is safe.
 - **`modules/aws`:** declares the contract variables and outputs, with no resources.
 - **`scripts/smoke`:** a Python script run with `uv run`, reading `.env.local`:
   1. Produce and consume one message on `clickstream.events.v1`.

@@ -42,6 +42,11 @@ dependencies = [
     { name = "pydantic" },
 ]
 
+[package.optional-dependencies]
+kafka = [
+    { name = "confluent-kafka" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "confluent-kafka" },
@@ -51,9 +56,11 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "confluent-kafka", marker = "extra == 'kafka'", specifier = ">=2.15.1" },
     { name = "jsonschema", extras = ["format-nongpl"], specifier = ">=4.26" },
     { name = "pydantic", specifier = ">=2.13" },
 ]
+provides-extras = ["kafka"]
 
 [package.metadata.requires-dev]
 dev = [

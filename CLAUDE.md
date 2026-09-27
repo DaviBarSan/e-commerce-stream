@@ -81,7 +81,7 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
 ### Application code (Python)
 - Python is managed with `uv`, and versions are pinned in `versions.env`.
 - Settings come only from environment variables defined by the contract. **No hard-coded endpoints, credentials or cloud names.**
-- Cloud SDKs are imported only inside the driver or sink modules (`telemetry/*_driver.py`, `sinks/*`), and loaded lazily based on `STREAMING_BACKEND` / `WAREHOUSE_BACKEND`.
+- Cloud SDKs (`confluent_kafka`, `google.cloud`, `boto3`) are imported only inside driver, source or sink modules (`telemetry/*_driver.py`, `services/*/app/sources/*`, `services/*/app/sinks/*`), and loaded lazily based on `STREAMING_BACKEND` / `WAREHOUSE_BACKEND`. `scripts/check_sdk_imports.py` enforces it.
 - **Telemetry is emitted only by the FastAPI store backend.** The Reflex frontend and the bots never publish events.
 
 ### Data (dbt)

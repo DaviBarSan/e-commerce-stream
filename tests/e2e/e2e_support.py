@@ -63,7 +63,10 @@ class Stack:
 
     def plan_exit_code(self, env=None):
         """0 = no changes, 2 = changes pending. A plan error (exit 1) raises with Terraform's output."""
-        result = self.tf("plan", "-input=false", "-no-color", "-detailed-exitcode", env=env, check=False)
+        args = ("plan", "-input=false", "-no-color", "-detailed-exitcode")
+        result = self.tf(*args, env=env, check=False)
+        if result.returncode == 1 and "broker not connected" in result.stderr:
+            result = self.tf(*args, env=env, check=False)  # same one retry as the Makefile's tf()
         if result.returncode == 1:
             raise AssertionError(f"plan failed in {self.dir}\n{result.stdout}\n{result.stderr}")
         return result.returncode
@@ -126,3 +129,86 @@ def read_env_file(path):
             key, value = line.split("=", 1)
             env[key] = value
     return env
+
+
+def local_env():
+    """Ensure the local environment is up (idempotent) and return .env.local."""
+    make("up")
+    return read_env_file(REPO_ROOT / ".env.local")
+
+
+# --- clickstream helpers (telemetry and later features) ------------------------------------
+
+def _eur(amount):
+    return {"amount_minor": amount, "currency": "EUR"}
+
+
+def _journey_1_step(step, cart_id, product_id):
+    """The journey-1 steps (spec 04 §4) as (event_type, fields), repeating every 6 steps."""
+    steps = [
+        ("page_view", {"page_url": "/", "properties": {"page": "home"}}),
+        ("search", {"page_url": "/search?q=lamp", "properties": {"query": "lamp", "results_count": 3}}),
+        ("product_view", {"page_url": f"/products/{product_id}", "product_id": product_id,
+                          "properties": {"category": "lighting", "price": _eur(1999)}}),
+        ("add_to_cart", {"page_url": f"/products/{product_id}", "product_id": product_id, "cart_id": cart_id,
+                         "properties": {"quantity": 1, "unit_price": _eur(1999)}}),
+        ("checkout_start", {"page_url": "/checkout", "cart_id": cart_id,
+                            "properties": {"items_count": 1, "cart_total": _eur(1999)}}),
+        ("purchase", {"page_url": "/checkout/confirmation", "cart_id": cart_id, "order_id": f"o-{cart_id}",
+                      "properties": {"total": _eur(1999)}}),
+    ]
+    return steps[step % len(steps)]
+
+
+def journey_1_event(run_id, session_no, step, event_ts):
+    """The step-th event of a repeating journey-1 session. Keys (and so event_ids) are unique per run."""
+    from telemetry import build_event
+
+    session_id = f"s-{run_id}-{session_no}"
+    event_type, fields = _journey_1_step(step, cart_id=f"c-{run_id}-{session_no}-{step // 6}",
+                                         product_id=str(100 + session_no))
+    return build_event(event_type, idempotency_key=f"{session_id}-{step}", event_ts=event_ts,
+                       user_id=f"anon-{run_id}-{session_no}", session_id=session_id, **fields)
+
+
+def topic_end_offsets(bootstrap, topic):
+    """{partition: high watermark} for every partition of a topic."""
+    from confluent_kafka import Consumer, TopicPartition
+
+    consumer = Consumer({"bootstrap.servers": bootstrap, "group.id": "e2e-watermarks"})
+    try:
+        partitions = consumer.list_topics(topic, timeout=15).topics[topic].partitions
+        return {p: consumer.get_watermark_offsets(TopicPartition(topic, p), timeout=15)[1] for p in partitions}
+    finally:
+        consumer.close()
+
+
+def read_messages(bootstrap, topic, start_offsets, wanted_event_ids, timeout=60):
+    """Read the topic from start_offsets until every wanted event_id is seen, or the timeout expires.
+
+    Returns the matching messages in consumption order: event_id, key, value, headers, partition.
+    """
+    import time
+
+    from confluent_kafka import Consumer, TopicPartition
+
+    wanted, found = {str(i) for i in wanted_event_ids}, []
+    consumer = Consumer({"bootstrap.servers": bootstrap, "group.id": "e2e-reader", "enable.auto.commit": False})
+    try:
+        consumer.assign([TopicPartition(topic, p, off) for p, off in start_offsets.items()])
+        deadline = time.monotonic() + timeout
+        while wanted - {m["event_id"] for m in found} and time.monotonic() < deadline:
+            msg = consumer.poll(1.0)
+            if msg is None or msg.error():
+                continue
+            try:
+                event_id = json.loads(msg.value()).get("event_id")
+            except (ValueError, AttributeError):
+                continue  # not an event (e.g. a smoke-test message)
+            if event_id in wanted:
+                found.append({"event_id": event_id, "key": msg.key(), "value": msg.value(),
+                              "headers": {k: v.decode() for k, v in (msg.headers() or [])},
+                              "partition": msg.partition()})
+    finally:
+        consumer.close()
+    return found

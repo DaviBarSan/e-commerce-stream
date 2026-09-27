@@ -30,6 +30,13 @@ for s in $(STACKS); do \
 done
 endef
 
+# tf <stack> <args...>: runs terraform in a stack and retries once. The Mongey/kafka provider
+# intermittently fails with "kafka: broker not connected" (a race in its sarama client) even when the
+# broker is healthy; plan/apply/destroy are idempotent, so one retry is safe.
+define TF
+tf() { terraform -chdir="$$1" "$${@:2}" || { echo "terraform: $$1 failed, retrying once in 5s" >&2; sleep 5; terraform -chdir="$$1" "$${@:2}"; }; }
+endef
+
 .PHONY: help doctor init plan up down env smoke e2e fmt validate
 
 help: ## List the targets
@@ -45,23 +52,23 @@ init: ## terraform init on every stack of ENV
 
 plan: ## terraform plan on every stack of ENV
 	@$(require_stacks)
-	@for s in $(STACKS); do terraform -chdir=$$s plan -input=false; done
+	@$(TF); for s in $(STACKS); do tf $$s plan -input=false; done
 
 up: ## Apply every stack of ENV in order (writes .env.<ENV>)
 	@$(require_stacks)
-	@for s in $(STACKS); do terraform -chdir=$$s init -input=false && terraform -chdir=$$s apply -input=false -auto-approve; done
+	@$(TF); for s in $(STACKS); do terraform -chdir=$$s init -input=false && tf $$s apply -input=false -auto-approve; done
 	@echo "up: $(ENV_FILE) written"
 
 down: ## Destroy every stack of ENV in reverse order (full reset)
 	@$(require_stacks)
-	@for s in $(REVERSED_STACKS); do \
+	@$(TF); for s in $(REVERSED_STACKS); do \
 	  if ! terraform -chdir=$$s state list 2>/dev/null | grep -q .; then echo "down: $$s has no resources, skipping"; continue; fi; \
-	  terraform -chdir=$$s destroy -input=false -auto-approve; \
+	  tf $$s destroy -input=false -auto-approve; \
 	done
 
 env: ## Regenerate .env.<ENV> from the stack outputs
 	@$(require_stacks)
-	@terraform -chdir=$(ENV_STACK) apply -input=false -auto-approve -target=local_sensitive_file.env
+	@$(TF); tf $(ENV_STACK) apply -input=false -auto-approve -target=local_sensitive_file.env
 
 smoke: ## Run the platform smoke test for ENV
 	@[ -f "$(ENV_FILE)" ] || { echo "smoke: $(ENV_FILE) not found; run make up ENV=$(ENV)" >&2; exit 1; }
