@@ -62,8 +62,11 @@ class Stack:
         return self.tf("destroy", "-input=false", "-auto-approve", env=env)
 
     def plan_exit_code(self, env=None):
-        """0 = no changes, 2 = changes pending."""
-        return self.tf("plan", "-input=false", "-detailed-exitcode", env=env, check=False).returncode
+        """0 = no changes, 2 = changes pending. A plan error (exit 1) raises with Terraform's output."""
+        result = self.tf("plan", "-input=false", "-no-color", "-detailed-exitcode", env=env, check=False)
+        if result.returncode == 1:
+            raise AssertionError(f"plan failed in {self.dir}\n{result.stdout}\n{result.stderr}")
+        return result.returncode
 
     def outputs(self, env=None):
         raw = json.loads(self.tf("output", "-json", env=env).stdout)
@@ -99,3 +102,27 @@ def pg_connect(platform_outputs, dbname="postgres"):
         host=out["postgres_host"], port=out["postgres_port"], dbname=dbname,
         user=out["postgres_admin_user"], password=out["postgres_admin_password"], connect_timeout=10,
     )
+
+
+LOCAL_RESOURCES = Stack("local/20-resources")
+
+# Environment contract keys (spec 01 §4.2), written to .env.<env> by every env.
+CONTRACT_KEYS = [
+    "STREAMING_BACKEND", "KAFKA_BOOTSTRAP_SERVERS", "GCP_PROJECT_ID", "EVENTS_TOPIC", "EVENTS_DLQ_TOPIC",
+    "WAREHOUSE_BACKEND", "WAREHOUSE_DSN", "WAREHOUSE_DATASET", "WAREHOUSE_RAW_SCHEMA",
+    "STORE_DB_DSN", "DBT_WAREHOUSE_DSN", "AIRFLOW_DB_DSN",
+]
+
+
+def make(*args, timeout=1200, check=True):
+    """Run a Makefile target from the repo root (same entry point as a developer)."""
+    return run(["make", *args], env=tf_env(), timeout=timeout, check=check)
+
+
+def read_env_file(path):
+    env = {}
+    for line in Path(path).read_text().splitlines():
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            env[key] = value
+    return env
