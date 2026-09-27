@@ -1,12 +1,13 @@
 locals {
   # Single-node KRaft (combined broker + controller). Clients on the host use EXTERNAL,
-  # containers on the platform network use INTERNAL.
+  # containers on the platform network use INTERNAL. EXTERNAL advertises 127.0.0.1, not localhost:
+  # the port is bound to IPv4 only and localhost resolves to ::1 first, which stalls clients on Windows.
   kafka_env = {
     CLUSTER_ID                                             = var.cluster_id
     KAFKA_NODE_ID                                          = "1"
     KAFKA_PROCESS_ROLES                                    = "broker,controller"
     KAFKA_LISTENERS                                        = "INTERNAL://:19092,EXTERNAL://:9092,CONTROLLER://:9093"
-    KAFKA_ADVERTISED_LISTENERS                             = "INTERNAL://kafka:19092,EXTERNAL://localhost:${var.host_port}"
+    KAFKA_ADVERTISED_LISTENERS                             = "INTERNAL://kafka:19092,EXTERNAL://127.0.0.1:${var.host_port}"
     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP                   = "INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT"
     KAFKA_INTER_BROKER_LISTENER_NAME                       = "INTERNAL"
     KAFKA_CONTROLLER_LISTENER_NAMES                        = "CONTROLLER"

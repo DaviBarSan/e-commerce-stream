@@ -1,6 +1,8 @@
 output "host" {
+  # 127.0.0.1, not localhost: the port is bound to IPv4 only, and "localhost" resolves to ::1 first,
+  # which hangs (instead of being refused) on Windows hosts until the client's connect timeout.
   description = "Postgres host for clients on the host."
-  value       = "localhost"
+  value       = "127.0.0.1"
   depends_on  = [terraform_data.admin_password]
 }
 

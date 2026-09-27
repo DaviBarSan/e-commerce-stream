@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); T2.1 done (`event-contract`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.3 done (`store-api`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -99,18 +99,18 @@ How to read the tables:
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
 | T2.1 ✅ | Event schema v1 (JSON Schema) and Python model | 04 | T0.1 | The schema file exists, and the model round-trips valid samples and rejects invalid ones |
-| T2.2 | `telemetry/base.py`: the `EventProducer` abstract base class and factory | 04 | T2.1 | Unit tests pass using an in-memory fake driver |
-| T2.3 | `telemetry/kafka_driver.py` | 04 | T2.2, T1.6 | An integration test publishes to local Kafka and the event is consumed |
-| T2.4 | `telemetry/gcp_driver.py` (stub that fails with a clear error until Phase 8) | 04 | T2.2 | Selecting `pubsub` raises a clear "not provisioned" error |
-| T2.5 | `telemetry/aws_driver.py` (standby stub) | 04 | T2.2 | Same as T2.4 |
+| T2.2 ✅ | `telemetry/base.py`: the `EventProducer` abstract base class and factory | 04 | T2.1 | Unit tests pass using an in-memory fake driver |
+| T2.3 ✅ | `telemetry/kafka_driver.py` | 04 | T2.2, T1.6 | An integration test publishes to local Kafka and the event is consumed |
+| T2.4 ✅ | `telemetry/gcp_driver.py` (stub that fails with a clear error until Phase 8) | 04 | T2.2 | Selecting `pubsub` raises a clear "not provisioned" error |
+| T2.5 ✅ | `telemetry/aws_driver.py` (standby stub) | 04 | T2.2 | Same as T2.4 |
 
 ### Phase 3: Store app
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T3.1 | Store schema and seed data (catalog, users) in the `store` database | 02 | T1.5 | Seed script loads the products, idempotently |
-| T3.2 | Backend API: catalog, search, product, cart and checkout endpoints | 02 | T3.1 | API tests pass, and the OpenAPI docs are served |
-| T3.3 | Backend telemetry hooks: every user-facing action emits an event through `EventProducer` | 02, 04 | T3.2, T2.3 | Each endpoint emits the expected `event_type` to Kafka |
+| T3.1 ✅ | Store schema and seed data (catalog, users) in the `store` database | 02 | T1.5 | Seed script loads the products, idempotently |
+| T3.2 ✅ | Backend API: catalog, search, product, cart and checkout endpoints | 02 | T3.1 | API tests pass, and the OpenAPI docs are served |
+| T3.3 ✅ | Backend telemetry hooks: every user-facing action emits an event through `EventProducer` | 02, 04 | T3.2, T2.3 | Each endpoint emits the expected `event_type` to Kafka |
 | T3.4 | Frontend screens: home, search, product detail, cart and checkout | 02 | T3.2 | You can complete a purchase flow manually in the browser |
 | T3.5 | Dockerfiles for the backend and frontend | 02 | T3.3, T3.4 | The images build |
 | T3.6 | `modules/local/app`: Terraform runs the backend and frontend containers | 01, 02 | T3.5 | After `make up`, the store opens on `:3000` and the API on `:8000` |

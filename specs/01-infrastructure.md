@@ -59,7 +59,7 @@ The `Mongey/kafka` and `cyrilgdn/postgresql` providers connect to live servers w
 | Key | Local value | GCP value |
 |---|---|---|
 | `STREAMING_BACKEND` | `kafka` | `pubsub` |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` (host) / `kafka:19092` (in-network) | none |
+| `KAFKA_BOOTSTRAP_SERVERS` | `127.0.0.1:9092` (host) / `kafka:19092` (in-network) | none |
 | `GCP_PROJECT_ID` | none | project ID |
 | `EVENTS_TOPIC` | `clickstream.events.v1` | Pub/Sub topic ID |
 | `EVENTS_DLQ_TOPIC` | `clickstream.events.dlq` | Pub/Sub topic ID |
@@ -78,7 +78,7 @@ Values used inside containers (network hostnames) are passed to the containers d
 
 | Component | Image | Host port | Network alias | Notes |
 |---|---|---|---|---|
-| Kafka | `apache/kafka:<pinned>` | 9092 | `kafka:19092` | KRaft combined broker and controller, one node. Two listeners: `EXTERNAL://localhost:9092` for the host and `INTERNAL://kafka:19092` for the Docker network. Replication factor 1. |
+| Kafka | `apache/kafka:<pinned>` | 9092 | `kafka:19092` | KRaft combined broker and controller, one node. Two listeners: `EXTERNAL://127.0.0.1:9092` for the host and `INTERNAL://kafka:19092` for the Docker network. Replication factor 1. |
 | Kafka UI | `provectuslabs/kafka-ui:<pinned>` | 8085 | `kafka-ui` | Lets you watch topics during development |
 | Postgres | `postgres:<pinned>` | 5432 | `postgres` | Named volume `pgdata`. Databases: `store`, `warehouse`, `airflow` |
 
