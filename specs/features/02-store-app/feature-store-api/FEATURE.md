@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| Not started | [02](../../../02-store-app.md) | T3.1–T3.3 | F01.3, F04.2 | 3 |
+| Not started | [02](../../../02-store-app.md) | T3.1–T3.3 | infra-local-resources, telemetry-producer | 3 |
 
 ## 1. Goal
 A stateless FastAPI store backend on top of the `store` database. It serves the catalog, search, cart and checkout, and **emits exactly one clickstream event per tracked action** through `EventProducer`.
@@ -32,7 +32,7 @@ A stateless FastAPI store backend on top of the `store` database. It serves the 
 - **Config:** `STORE_DB_DSN`, `STREAMING_BACKEND` plus the backend keys, and `EVENTS_TOPIC`.
 
 ## 4. Interfaces
-- **Consumes:** the `store` database (F01.3) and the `telemetry` package (F04.2).
+- **Consumes:** the `store` database (F01.3) and the `telemetry` package (telemetry-producer).
 - **Produces:**
   - The HTTP API on `:8000`, used by F02.2 and F03.1
   - Events on `clickstream.events.v1`
@@ -54,4 +54,4 @@ A stateless FastAPI store backend on top of the `store` database. It serves the 
 Both flows pass through `make e2e FEATURE=store-api`, and `/docs` serves the OpenAPI spec.
 
 ## 7. Open items
-- Where `product_id` goes in events (parking lot). Until then it stays in `metadata_json`.
+None. `product_id`, `cart_id` and `order_id` are top-level event fields (D10), and `event_id` is derived from the `Idempotency-Key` header (D13).

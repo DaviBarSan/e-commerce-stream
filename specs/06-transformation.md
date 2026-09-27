@@ -20,9 +20,9 @@ dbt/
   packages.yml          dbt-utils (cross-db helpers)
   profiles.yml          targets: local (postgres), bigquery (Phase 8); secrets from env vars
   macros/
-    json_extract.sql    cross-db JSON access (approach deferred)
+    json_get.sql        json_get(column, path, type): cross-db JSON access (D12)
   models/
-    staging/      stg_clickstream.sql, _staging.yml
+    staging/      stg_clickstream.sql, stg_events__<event_type>.sql (one per event type), _staging.yml
     intermediate/ int_sessions.sql, _intermediate.yml
     marts/        fct_events.sql, fct_conversion_funnels.sql, dim_users.sql, _marts.yml
   tests/          singular tests (e.g. session boundary assertions)
@@ -36,19 +36,17 @@ dbt/
 
 ## 4. Portability rules
 1. Models use ANSI SQL, plus `dbt_utils` / `dbt.*` cross-database macros (for example `dbt.datediff` and `dbt.dateadd`).
-2. **Dialect-specific syntax lives only in `macros/`.** JSON access is the main case. The macro dispatches on `target.type` (`postgres__json_extract` / `bigquery__json_extract`).
+2. **Dialect-specific syntax lives only in `macros/`.** JSON access is the main case: `json_get(column, path, type)` dispatches on `target.type` (`postgres__json_get` uses `#>>` with a cast, `bigquery__json_get` uses `JSON_VALUE` with `SAFE_CAST`).
 3. Type casts use `{{ dbt.type_timestamp() }}` and similar macros.
 4. Portability test: `dbt build --target bigquery` must pass with **no model changes** (T8.5).
 
-**Deferred (T6.2):** how the JSON macro works, which depends on the raw table columns (spec 05, T5.1).
+**JSON strategy (D12):** the frequently used fields are real columns in the raw table (D11), so most models never touch JSON. Only the per-event-type staging models call `json_get`, to flatten `properties`; intermediate models and marts are pure ANSI SQL.
 
 ## 5. Models
 
 ### 5.1 `stg_clickstream` (view or incremental)
-- Parses the raw payload into typed columns:
-  - `event_id`, `event_type`, `event_ts`, `user_id`, `session_id`, `page_url`
-  - `product_id`, `order_id` and `cart_id` from `metadata_json`, until the parking-lot decision in spec 04 is made
-  - `ingested_at`
+- Selects the typed columns of the raw table (D11): `event_id`, `event_type`, `event_ts`, `produced_at`, `ingested_at`, `user_id`, `anonymous_id`, `session_id`, `product_id`, `cart_id`, `order_id`, plus `page_url` via `json_get`.
+- **Per-event-type models** `stg_events__<event_type>` (for example `stg_events__add_to_cart`) flatten that type's `properties` with `json_get`; money becomes `amount_minor` plus `currency` columns.
 - **Deduplication:** keep one row per `event_id`, the one with the earliest `ingested_at`.
 - Filters out rows whose `schema_version` isn't supported (kept visible through a test with severity `warn`).
 
@@ -100,5 +98,4 @@ The incremental predicates must use cross-database macros (`dbt.dateadd`).
 5. Phase 8: the `bigquery` target builds with no model changes.
 
 ## 10. Open items
-- How the JSON macro works (T6.2), which depends on the raw table columns (T5.1).
 - Whether sessions use the derived inactivity sessions only, or also the client `session_id`, for reporting.

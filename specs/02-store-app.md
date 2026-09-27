@@ -62,6 +62,7 @@ The seed is idempotent, and its size is set by configuration (default: about 200
 | `GET /health` | Liveness | none |
 
 ### Session and user identity
+- Every tracked call carries an `Idempotency-Key` header, one per user action (a retry of the same action reuses it). The backend derives the event's `event_id` from it (D13, spec 04 §3.4), and generates a key when it's missing.
 - The client sends the `X-Session-Id` and `X-User-Id` headers. The frontend creates them once per browser session, and bots create one per simulated user.
 - If they're missing, the backend creates them and returns them in the response headers.
 - The canonical list of event types is defined in spec 04.
@@ -95,4 +96,4 @@ Read from the environment contract (spec 01 §4):
 4. The backend is stateless. Restarting it loses no carts.
 
 ## 11. Open items
-- Details of avoiding duplicate events on the frontend side (parking lot). For example: can a Reflex websocket reconnect, or a retried event handler, call a tracked endpoint twice? The `event_id` deduplication in spec 06 is the backstop.
+None. Duplicate events from Reflex reconnects or retried handlers are handled by the `Idempotency-Key` header and the deterministic `event_id` (D13).

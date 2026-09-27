@@ -1,0 +1,13 @@
+{
+  "schema_version": "2",
+  "event_id": "0b6f4a53-3d5c-5b7e-8f21-1a2b3c4d5e01",
+  "event_type": "page_view",
+  "event_ts": "2026-09-27T14:03:11.412Z",
+  "produced_at": "2026-09-27T14:03:11.430Z",
+  "user_id": "anon-7d9e2c1a",
+  "session_id": "s-51c0f3",
+  "page_url": "/",
+  "properties": {
+    "page": "home"
+  }
+}
