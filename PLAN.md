@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (feature `infra-foundations`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); T1.1–T1.4 done (`infra-local-platform`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -80,10 +80,10 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T1.1 | `modules/local/network`: Docker network | 01 | T0.* | `terraform apply` creates the network |
-| T1.2 | `modules/local/kafka`: `apache/kafka` KRaft container with internal and external listeners, plus a Kafka UI container | 01 | T1.1 | The broker can be reached from the host (`localhost:9092`) and the network (`kafka:19092`), and the UI loads on `:8085` |
-| T1.3 | `modules/local/postgres`: Postgres container with a persistent volume | 01 | T1.1 | `psql` connects from the host on `:5432` |
-| T1.4 | `envs/local/10-platform` root stack wiring T1.1–T1.3 | 01 | T1.1–T1.3 | `make up ENV=local` brings up the platform stack |
+| T1.1 ✅ | `modules/local/network`: Docker network | 01 | T0.* | `terraform apply` creates the network |
+| T1.2 ✅ | `modules/local/kafka`: `apache/kafka` KRaft container with internal and external listeners, plus a Kafka UI container | 01 | T1.1 | The broker can be reached from the host (`localhost:9092`) and the network (`kafka:19092`), and the UI loads on `:8085` |
+| T1.3 ✅ | `modules/local/postgres`: Postgres container with a persistent volume | 01 | T1.1 | `psql` connects from the host on `:5432` |
+| T1.4 ✅ | `envs/local/10-platform` root stack wiring T1.1–T1.3 | 01 | T1.1–T1.3 | `make up ENV=local` brings up the platform stack |
 | T1.5 | `envs/local/20-resources`: Kafka topics (Mongey/kafka), plus Postgres databases, schemas and roles (cyrilgdn/postgresql) | 01, 04, 05 | T1.4 | The topics exist with the configured partitions and retention, and the `store`, `warehouse` and `airflow` databases exist |
 | T1.6 | Environment contract outputs and `.env` generation (`local_file`) | 01 | T1.5 | `make env ENV=local` writes `.env.local` with every contract key |
 | T1.7 | `modules/aws` placeholder (variables and outputs only) | 01 | T1.6 | `terraform validate` passes and no resources are declared |

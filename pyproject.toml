@@ -7,7 +7,14 @@ requires-python = ">=3.12"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "confluent-kafka>=2.15.1",
+    "psycopg[binary]>=3.3.6",
+    "pytest>=8",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Shared helpers live in tests/e2e/e2e_support.py; importlib mode lets feature folders reuse file names.
+pythonpath = ["tests/e2e"]
+addopts = "--import-mode=importlib"

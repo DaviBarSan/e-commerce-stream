@@ -111,7 +111,7 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
   |---|---|
   | 9092 | Kafka |
   | 8085 | Kafka UI |
-  | 5432 | Postgres |
+  | 5432 | Postgres (override with `postgres_host_port` in a gitignored `*.local.auto.tfvars`) |
   | 8000 | Store API |
   | 3000 | Reflex UI |
   | 8001 | Reflex backend |

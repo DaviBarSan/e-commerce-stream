@@ -16,3 +16,6 @@ __pycache__/
 # dbt
 dbt/target/
 dbt/logs/
+
+# Machine-specific Terraform overrides
+*.local.auto.tfvars
