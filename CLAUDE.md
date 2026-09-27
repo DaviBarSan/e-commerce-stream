@@ -18,6 +18,7 @@ When they conflict, `PLAN.md` decisions win, then the layer spec, then the featu
 **Spec → Features → Tasks.**
 - **Spec:** each layer spec is broken into **features**, which are cohesive blocks you can deliver on their own.
 - **Feature:** each feature maps to one or more `PLAN.md` tasks and owns its code, its Terraform module (if any) and its **two E2E test flows**.
+- **Feature ID:** the feature's folder name without the `feature-` prefix (for example `infra-foundations`). Use it for `make e2e FEATURE=<id>`, `tests/e2e/<id>/` and the branch name `feature/<id>`.
 - **Unit of work:** one feature. Don't start a feature until every feature it depends on is `Done`.
 
 ### Folder structure
@@ -51,7 +52,8 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
 - **Each feature defines exactly two end-to-end test flows** in its `FEATURE.md`:
   - **E2E-1: main flow.** The feature works as intended, from its real inputs to its real outputs.
   - **E2E-2: resilience or lifecycle flow.** Failure, restart, idempotency, teardown or contract parity: whichever risk matters most for that feature.
-- **They are the acceptance gate.** A feature is `Done` only when both flows pass through `make e2e FEATURE=<feature-id>`, which runs `tests/e2e/<feature-id>/`.
+- **They are the acceptance gate.** A feature is `Done` only when both flows pass through `make e2e FEATURE=<feature-id>`, which runs `uv run pytest tests/e2e/<feature-id>`.
+- **Layout:** one pytest module per flow, `tests/e2e/<feature-id>/test_e2e_1_<slug>.py` and `test_e2e_2_<slug>.py`. Shell steps go through `subprocess`.
 - **No scattered runtime checks during development.** Don't run many one-off commands or poke containers by hand to "see if it works". Automate the check as one of the two flows, then run it.
 - **Unit tests are optional**, and only for pure logic (schema validation, session math, and so on). They don't replace the E2E flows.
 - **Validate data once, at the boundary.**
@@ -98,7 +100,7 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
 | `make plan ENV=local` | Show planned infrastructure changes |
 | `make env ENV=local` | Write `.env.local` from the Terraform outputs |
 | `make smoke ENV=local` | Platform smoke test |
-| `make e2e FEATURE=<id>` | Run a feature's two E2E flows (for example `FEATURE=F01.2`) |
+| `make e2e FEATURE=<id>` | Run a feature's two E2E flows (for example `FEATURE=infra-local-platform`) |
 | `make fmt` / `make validate` | Terraform formatting and validation |
 
 ## 7. Environment notes

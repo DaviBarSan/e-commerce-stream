@@ -61,7 +61,7 @@
 3. `terraform validate` passes for `modules/aws`.
 
 ## 6. Definition of done
-Both flows pass through `make e2e FEATURE=F01.3`. Phase 1 acceptance (spec 01 §10) is met.
+Both flows pass through `make e2e FEATURE=infra-local-resources`. Phase 1 acceptance (spec 01 §10) is met.
 
 ## 7. Open items
 - AWS free tier and account terms (parking lot, D7).

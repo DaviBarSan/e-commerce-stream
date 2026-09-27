@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** Approved for planning, not implemented yet.
+> **Status:** In progress. Phase 0 done (feature `infra-foundations`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -70,11 +70,11 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T0.1 | Create the repo skeleton (`terraform/`, `services/`, `telemetry/`, `dbt/`, `dags/`, `specs/`, `scripts/`) | 01 | none | The directory tree matches spec 01 §3 and spec 02–06 layouts |
-| T0.2 | Pin tool versions: Terraform, Docker, Python with `uv`, `apache/kafka` tag, `postgres` tag | 01 | T0.1 | A versions file is committed, and `make doctor` reports every tool |
-| T0.3 | Makefile skeleton: `doctor`, `init`, `plan`, `up`, `down`, `smoke`, `fmt`, `validate`, `env` | 01 | T0.1 | `make help` lists all targets, and `ENV` defaults to `local` |
-| T0.4 | `.gitignore` for Terraform state, `.terraform/`, `.env*` and Python caches | 01 | T0.1 | `git status` is clean after a local apply |
-| T0.5 | Document the Windows prerequisites (Docker Desktop, Git Bash, `make`) in the README | 01 | T0.3 | A fresh machine can follow the README to `make doctor` |
+| T0.1 ✅ | Create the repo skeleton (`terraform/`, `services/`, `telemetry/`, `dbt/`, `dags/`, `specs/`, `scripts/`) | 01 | none | The directory tree matches spec 01 §3 and spec 02–06 layouts |
+| T0.2 ✅ | Pin tool versions: Terraform, Docker, Python with `uv`, `apache/kafka` tag, `postgres` tag | 01 | T0.1 | A versions file is committed, and `make doctor` reports every tool |
+| T0.3 ✅ | Makefile skeleton: `doctor`, `init`, `plan`, `up`, `down`, `smoke`, `fmt`, `validate`, `env` | 01 | T0.1 | `make help` lists all targets, and `ENV` defaults to `local` |
+| T0.4 ✅ | `.gitignore` for Terraform state, `.terraform/`, `.env*` and Python caches | 01 | T0.1 | `git status` is clean after a local apply |
+| T0.5 ✅ | Document the Windows prerequisites (Docker Desktop, Git Bash, `make`) in the README | 01 | T0.3 | A fresh machine can follow the README to `make doctor` |
 
 ### Phase 1: Local base infrastructure
 

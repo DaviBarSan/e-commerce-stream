@@ -1,0 +1,13 @@
+[project]
+name = "clickstream"
+version = "0.1.0"
+description = "Cloud-agnostic clickstream analytics pipeline"
+# Keep in line with PYTHON_MIN_VERSION in versions.env.
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
