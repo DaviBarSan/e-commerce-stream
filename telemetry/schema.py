@@ -246,7 +246,7 @@ def validate_payload(data: bytes | str | dict[str, Any]) -> dict[str, Any]:
     """Validate a payload against the JSON Schema (the consumer-side check). Returns the decoded dict."""
     try:
         payload = json.loads(data) if isinstance(data, (bytes, str)) else data
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:  # arbitrary bytes arrive at the consumer
         raise EventValidationError(f"not valid JSON: {exc}") from exc
     error = best_match(_validator().iter_errors(payload))
     if error is not None:

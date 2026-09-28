@@ -10,8 +10,8 @@ from pathlib import Path
 SDKS = ("confluent_kafka", "google.cloud", "boto3")
 ALLOWED = (
     "telemetry/*_driver.py",
-    "services/*/app/sources/*",
-    "services/*/app/sinks/*",
+    "services/*/*/sources/*",
+    "services/*/*/sinks/*",
     "scripts/*",
     "tests/*",
 )

@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.3 done (`store-api`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.3 done (`store-api`); T5.1, T5.2, T5.4 done (`ingest-consumer`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -127,10 +127,10 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T5.1 | Raw staging table per D11 | 05 | T2.1 | The table exists with the D11 columns, and D11 is reflected in spec 05 |
-| T5.2 | Streaming consumer: Kafka to Postgres micro-batches, committing offsets only after a successful write | 05 | T5.1, T2.3 | Events show up in raw staging, with no data loss after a restart |
+| T5.1 ✅ | Raw staging table per D11 | 05 | T2.1 | The table exists with the D11 columns, and D11 is reflected in spec 05 |
+| T5.2 ✅ | Streaming consumer: Kafka to Postgres micro-batches, committing offsets only after a successful write | 05 | T5.1, T2.3 | Events show up in raw staging, with no data loss after a restart |
 | T5.3 | Consumer Docker image and `modules/local/consumer` | 01, 05 | T5.2 | The consumer runs under `make up` |
-| T5.4 | Dead-letter handling for invalid events | 05, 04 | T5.2 | Invalid events go to the DLQ topic, and the pipeline keeps running |
+| T5.4 ✅ | Dead-letter handling for invalid events | 05, 04 | T5.2 | Invalid events go to the DLQ topic, and the pipeline keeps running |
 
 ### Phase 6: Transformation
 
