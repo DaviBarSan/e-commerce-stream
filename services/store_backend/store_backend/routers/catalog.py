@@ -30,8 +30,25 @@ class ProductPage(BaseModel):
     page_size: int
 
 
+class HomeOut(BaseModel):
+    featured: list[ProductOut]
+    categories: list[str]
+
+
 def _out(product: Product) -> ProductOut:
     return ProductOut.model_validate(product, from_attributes=True)
+
+
+@router.get("/home", response_model=HomeOut)
+def home(request: Request, db: Session = Depends(get_db)) -> HomeOut:
+    """Home page: the first product of each category (up to 8) and the category list."""
+    categories = db.scalars(select(Product.category).distinct().order_by(Product.category)).all()
+    first_ids = select(func.min(Product.product_id)).group_by(Product.category)
+    featured = db.scalars(
+        select(Product).where(Product.product_id.in_(first_ids)).order_by(Product.category).limit(8)
+    ).all()
+    emit(request, "page_view", "/", properties={"page": "home"})
+    return HomeOut(featured=[_out(p) for p in featured], categories=list(categories))
 
 
 @router.get("/products", response_model=ProductPage)

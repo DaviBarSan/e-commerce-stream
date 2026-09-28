@@ -93,5 +93,5 @@ def test_openapi_docs_are_served(api):
     _, server = api
     assert httpx.get(f"{server.url}/docs", timeout=10).status_code == 200
     paths = httpx.get(f"{server.url}/openapi.json", timeout=10).json()["paths"]
-    assert {"/products", "/search", "/products/{product_id}", "/cart/items", "/cart/items/{product_id}",
+    assert {"/home", "/products", "/search", "/products/{product_id}", "/cart/items", "/cart/items/{product_id}",
             "/cart", "/checkout/start", "/checkout/complete", "/health"} <= set(paths)
