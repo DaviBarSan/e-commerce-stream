@@ -25,7 +25,7 @@ Kafka topic clickstream.events.v1
    │  (consumer group: clickstream-ingest)
    ▼
 [ Ingest Consumer (Python, confluent-kafka) ]
-   ├─ valid   → micro-batch INSERT → warehouse.raw.<events table>
+   ├─ valid   → micro-batch INSERT → warehouse.raw.clickstream_events
    └─ invalid → clickstream.events.dlq
 ```
 
@@ -43,14 +43,14 @@ Kafka topic clickstream.events.v1
 Layout:
 ```
 services/ingest_consumer/
-  app/  (consumer loop, sinks/postgres.py, sinks/bigquery.py later)
-  tests/
+  ingest_consumer/  (consumer loop, dlq.py, sources/kafka.py, sinks/postgres.py, sinks/bigquery.py later)
+  pyproject.toml    (uv workspace member)
   Dockerfile
 ```
 The sink is pluggable, chosen by `WAREHOUSE_BACKEND` (`postgres` / `bigquery`), and follows the same interface pattern as `EventProducer`.
 
 ### 5. Raw staging table (D11)
-The table is in the `raw` schema of the `warehouse` database, is created and written by the `ingest_writer` role, and holds the frequently used fields as columns plus the **whole original payload** (so it can be replayed):
+The table `raw.clickstream_events` is in the `raw` schema of the `warehouse` database, is created and written by the `ingest_writer` role, and holds the frequently used fields as columns plus the **whole original payload** (so it can be replayed):
 
 | Column | Type (Postgres / BigQuery) | Source |
 |---|---|---|

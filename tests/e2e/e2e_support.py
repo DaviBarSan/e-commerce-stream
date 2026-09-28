@@ -284,3 +284,123 @@ def seed_store(env):
     import sys
 
     return run([sys.executable, "-m", "store_backend.seed"], env={**os.environ, **env}, check=True)
+
+
+# --- ingest consumer on the host (ingest-consumer; containers come with ingest-deploy) --------
+
+class ConsumerProcess:
+    """Runs `python -m ingest_consumer` on the host with the contract env (plus overrides), logging to a file."""
+
+    def __init__(self, env, log_path, **overrides):
+        self.env = {**os.environ, **env, **{k: str(v) for k, v in overrides.items()}}
+        self.log_path = Path(log_path)
+        self.proc = None
+
+    def start(self):
+        import sys
+
+        self._log = open(self.log_path, "ab")
+        flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        self.proc = subprocess.Popen([sys.executable, "-m", "ingest_consumer"], cwd=REPO_ROOT, env=self.env,
+                                     stdout=self._log, stderr=subprocess.STDOUT, creationflags=flags)
+        # Ready once it logs "start": the sink has created the raw table by then.
+        started_before = len(self.log_records("start"))
+
+        def ready():
+            if not self.running():
+                raise AssertionError(f"consumer exited early:\n{self.log_path.read_text(errors='replace')}")
+            return len(self.log_records("start")) > started_before
+
+        wait_for(ready, 60, interval=0.2, message="the consumer to start")
+        return self
+
+    def running(self):
+        return self.proc is not None and self.proc.poll() is None
+
+    def stop(self, timeout=60):
+        """Graceful stop: the consumer flushes, commits and exits. Returns the exit code."""
+        import signal
+
+        if self.running():
+            self.proc.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)
+            try:
+                self.proc.wait(timeout)
+            except subprocess.TimeoutExpired:
+                self.proc.kill()
+                self.proc.wait(10)
+        self._log.close()
+        return self.proc.returncode
+
+    def kill(self):
+        """Hard kill: no flush, no commit."""
+        self.proc.kill()
+        self.proc.wait(10)
+        self._log.close()
+
+    def log_records(self, event=None):
+        """The consumer's JSON log lines (optionally only one event type)."""
+        records = []
+        for line in self.log_path.read_text(errors="replace").splitlines():
+            start = line.find("{")
+            if start >= 0:
+                try:
+                    record = json.loads(line[start:])
+                except ValueError:
+                    continue
+                if event is None or record.get("event") == event:
+                    records.append(record)
+        return records
+
+
+def start_group_at_end(env, group_id):
+    """Commit a new consumer group's offsets at the topic's current end, so a test's consumer skips the history."""
+    from confluent_kafka import Consumer, TopicPartition
+
+    topic = env["EVENTS_TOPIC"]
+    ends = topic_end_offsets(env["KAFKA_BOOTSTRAP_SERVERS"], topic)
+    consumer = Consumer({"bootstrap.servers": env["KAFKA_BOOTSTRAP_SERVERS"], "group.id": group_id,
+                         "enable.auto.commit": False})
+    try:
+        consumer.commit(offsets=[TopicPartition(topic, p, o) for p, o in ends.items()], asynchronous=False)
+    finally:
+        consumer.close()
+    return group_id
+
+
+def raw_rows(env, event_ids, columns="*", dsn_key="WAREHOUSE_DSN"):
+    """Rows of the raw table for the given event_ids, as dicts."""
+    import psycopg
+    from psycopg.rows import dict_row
+
+    table = f'{env["WAREHOUSE_RAW_SCHEMA"]}.clickstream_events'
+    with psycopg.connect(env[dsn_key], row_factory=dict_row, connect_timeout=10) as conn:
+        return conn.execute(f"SELECT {columns} FROM {table} WHERE event_id = ANY(%s::uuid[])",
+                            ([str(i) for i in event_ids],)).fetchall()
+
+
+def wait_for(predicate, timeout, interval=0.5, message="condition"):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        value = predicate()
+        if value:
+            return value
+        time.sleep(interval)
+    raise AssertionError(f"timed out after {timeout}s waiting for {message}")
+
+
+def produce_raw(bootstrap, topic, messages):
+    """Produce raw (key, value) messages; return their (partition, offset) in order."""
+    from confluent_kafka import Producer
+
+    delivered = [None] * len(messages)
+
+    def on_delivery(index):
+        return lambda err, msg: delivered.__setitem__(index, None if err else (msg.partition(), msg.offset()))
+
+    producer = Producer({"bootstrap.servers": bootstrap, "acks": "all"})
+    for index, (key, value) in enumerate(messages):
+        producer.produce(topic, key=key, value=value, on_delivery=on_delivery(index))
+    assert producer.flush(30) == 0 and all(delivered), "raw produce failed"
+    return delivered

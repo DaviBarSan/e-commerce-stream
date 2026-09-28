@@ -22,15 +22,17 @@ build-backend = "hatchling.build"
 packages = ["telemetry"]
 
 [tool.uv.workspace]
-members = ["services/store_backend"]
+members = ["services/store_backend", "services/ingest_consumer"]
 
 [tool.uv.sources]
 store-backend = { workspace = true }
+ingest-consumer = { workspace = true }
 
 [dependency-groups]
 dev = [
     "confluent-kafka>=2.15.1",
     "httpx>=0.28",
+    "ingest-consumer",
     "psycopg[binary]>=3.3.6",
     "pytest>=8",
     "store-backend",

@@ -21,6 +21,16 @@ def test_invalid_examples_are_rejected_by_schema_and_model(path):
         parse_event(raw)
 
 
+@pytest.mark.parametrize("raw", [b"\xff\xfe not UTF-8", b"not json at all", b"", b"[1, 2]"],
+                         ids=["not_utf8", "not_json", "empty", "json_array"])
+def test_arbitrary_bytes_are_rejected_cleanly(raw):
+    # The consumer sees whatever is on the topic; it must get EventValidationError, never a crash.
+    with pytest.raises(EventValidationError):
+        validate_payload(raw)
+    with pytest.raises(EventValidationError):
+        parse_event(raw)
+
+
 def test_model_and_schema_declare_the_same_types_and_required_fields():
     schema = json_schema()
     model_types = {typing.get_args(m.model_fields["event_type"].annotation)[0] for m in EVENT_MODELS}
