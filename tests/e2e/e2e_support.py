@@ -404,3 +404,90 @@ def produce_raw(bootstrap, topic, messages):
         producer.produce(topic, key=key, value=value, on_delivery=on_delivery(index))
     assert producer.flush(30) == 0 and all(delivered), "raw produce failed"
     return delivered
+
+
+def session_events(bootstrap, topic, start_offsets, session_id, until=None, timeout=60):
+    """Event payloads of one session, in order, read from start_offsets until until(events) is true (or timeout).
+
+    Without `until`, it reads until the topic is quiet for a few seconds.
+    """
+    import time
+
+    from confluent_kafka import Consumer, TopicPartition
+
+    events = []
+    consumer = Consumer({"bootstrap.servers": bootstrap, "group.id": "e2e-session-reader",
+                         "enable.auto.commit": False})
+    try:
+        consumer.assign([TopicPartition(topic, p, o) for p, o in start_offsets.items()])
+        deadline, last_seen = time.monotonic() + timeout, time.monotonic()
+        while time.monotonic() < deadline:
+            if until is not None and until(events):
+                break
+            if until is None and time.monotonic() - last_seen > 5:
+                break
+            msg = consumer.poll(0.5)
+            if msg is None or msg.error():
+                continue
+            try:
+                payload = json.loads(msg.value())
+            except (ValueError, AttributeError):
+                continue
+            if isinstance(payload, dict) and payload.get("session_id") == session_id:
+                events.append(payload)
+                last_seen = time.monotonic()
+    finally:
+        consumer.close()
+    return events
+
+
+# --- storefront on the host (store-frontend; containers come with store-deploy) -------------
+
+class ReflexServer:
+    """Runs the Reflex storefront in production mode (UI and Reflex backend on one port)."""
+
+    def __init__(self, env, log_path, backend_url, port=3000):
+        self.env = {**os.environ, **env, "BACKEND_URL": backend_url, "PYTHONUTF8": "1", "PYTHONUNBUFFERED": "1"}
+        self.log_path = Path(log_path)
+        self.port = port
+        self.url = f"http://127.0.0.1:{port}"
+        self.proc = None
+
+    def start(self, timeout=600):
+        """Builds the frontend on first run, which can take a few minutes."""
+        import sys
+        import time
+
+        import httpx
+
+        self._log = open(self.log_path, "ab")
+        flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        self.proc = subprocess.Popen(
+            [sys.executable, "-m", "reflex", "run", "--env", "prod",
+             "--frontend-port", str(self.port), "--backend-port", str(self.port)],
+            cwd=REPO_ROOT / "services" / "store_frontend", env=self.env,
+            stdout=self._log, stderr=subprocess.STDOUT, creationflags=flags,
+        )
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if self.proc.poll() is not None:
+                raise AssertionError(f"Reflex exited early:\n{self.log_path.read_text(errors='replace')[-4000:]}")
+            try:
+                if (httpx.get(f"{self.url}/ping", timeout=2).status_code == 200
+                        and httpx.get(self.url, timeout=5).status_code == 200):
+                    return self
+            except httpx.TransportError:
+                pass
+            time.sleep(1)
+        raise AssertionError(f"Reflex not up after {timeout}s:\n{self.log_path.read_text(errors='replace')[-4000:]}")
+
+    def stop(self):
+        """Stop the whole process tree (Reflex starts a web server and a bun process)."""
+        if self.proc is None or self.proc.poll() is not None:
+            return
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/PID", str(self.proc.pid), "/T", "/F"], capture_output=True)
+        else:
+            self.proc.terminate()
+        self.proc.wait(30)
+        self._log.close()

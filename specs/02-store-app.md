@@ -21,7 +21,7 @@ A working e-commerce store that gives realistic user journeys for the clickstrea
 | Component | Tech | Port | Notes |
 |---|---|---|---|
 | Backend (store API) | Python + FastAPI | 8000 | Stateless; carts are stored in the DB |
-| Frontend | Reflex | 3000 (UI), 8001 (Reflex backend) | Reflex event handlers run on the server and call the store API over HTTP. They never touch the DB or emit telemetry. Reflex's backend is moved from its default port 8000 to 8001 so it doesn't clash with the store API. |
+| Frontend | Reflex | 3000 (UI and Reflex backend) | Reflex event handlers run on the server and call the store API over HTTP. They never touch the DB or emit telemetry. It runs in production mode, where the UI and the Reflex backend share port 3000 (port 8001 stays reserved for a dev-mode Reflex backend). |
 | Store DB | Postgres, `store` database | 5432 | Provisioned by spec 01 |
 
 ## 4. Layout
@@ -51,6 +51,7 @@ Money is stored as an integer amount in minor units plus a currency, like the ev
 ## 6. API (v1)
 | Method + path | Purpose | Emits `event_type` |
 |---|---|---|
+| `GET /home` | Home page: featured products and categories | `page_view` (home) |
 | `GET /products` | List or browse the catalog (paginated, filter by category) | `page_view` (catalog) |
 | `GET /search?q=` | Search products | `search` |
 | `GET /products/{id}` | Product detail | `product_view` |
@@ -82,7 +83,7 @@ Read from the environment contract (spec 01 §4):
 - `STORE_DB_DSN`
 - `STREAMING_BACKEND` plus the backend-specific keys
 - `EVENTS_TOPIC`
-- `BACKEND_URL` (frontend only)
+- `BACKEND_URL` (frontend only): the store API base URL, required, no default (`http://127.0.0.1:8000` locally; a container address once `store-deploy` runs it)
 
 ## 9. Deployment
 | Env | Runtime |

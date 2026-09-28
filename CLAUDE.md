@@ -114,7 +114,7 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
   | 5432 | Postgres (override with `postgres_host_port` in a gitignored `*.local.auto.tfvars`) |
   | 8000 | Store API |
   | 3000 | Reflex UI |
-  | 8001 | Reflex backend |
+  | 8001 | Reflex backend (reserved; production mode serves it on 3000) |
   | 8080 | Airflow |
 
 - **Rollout order:** local must pass its end-to-end run (F05.5) before any GCP feature starts (D5). AWS stays on standby (D7).

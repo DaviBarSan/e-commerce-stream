@@ -19,3 +19,7 @@ dbt/logs/
 
 # Machine-specific Terraform overrides
 *.local.auto.tfvars
+
+# Reflex build output
+.web/
+.states/
