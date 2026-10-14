@@ -1,0 +1,18 @@
+# dbt project (spec 06 §3). Run through `make dbt ARGS="..."`, which loads .env.<ENV>.
+name: clickstream
+version: "0.1.0"
+profile: clickstream
+config-version: 2
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+models:
+  clickstream:
+    staging:
+      +schema: staging
+      +materialized: view

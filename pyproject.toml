@@ -21,6 +21,10 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["telemetry"]
 
+[tool.uv]
+# dbt is installed by default so `make dbt` and the E2E flows can run it.
+default-groups = ["dev", "dbt"]
+
 [tool.uv.workspace]
 members = ["services/store_backend", "services/ingest_consumer", "services/store_frontend"]
 
@@ -30,6 +34,10 @@ ingest-consumer = { workspace = true }
 store-frontend = { workspace = true }
 
 [dependency-groups]
+dbt = [
+    "dbt-core>=1.12.5",
+    "dbt-postgres>=1.11.0",
+]
 dev = [
     "confluent-kafka>=2.15.1",
     "httpx>=0.28",

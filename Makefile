@@ -37,7 +37,7 @@ define TF
 tf() { terraform -chdir="$$1" "$${@:2}" || { echo "terraform: $$1 failed, retrying once in 5s" >&2; sleep 5; terraform -chdir="$$1" "$${@:2}"; }; }
 endef
 
-.PHONY: help doctor init plan up down env smoke e2e fmt validate
+.PHONY: help doctor init plan up down env smoke dbt e2e fmt validate
 
 help: ## List the targets
 	@echo "Usage: make <target> [ENV=local|gcp|aws] [FEATURE=<feature-id>]   (ENV defaults to local)"
@@ -73,6 +73,10 @@ env: ## Regenerate .env.<ENV> from the stack outputs
 smoke: ## Run the platform smoke test for ENV
 	@[ -f "$(ENV_FILE)" ] || { echo "smoke: $(ENV_FILE) not found; run make up ENV=$(ENV)" >&2; exit 1; }
 	uv run python scripts/smoke/smoke.py "$(ENV_FILE)"
+
+dbt: ## Run dbt against ENV with its contract loaded (ARGS="build", "debug", ...)
+	@[ -f "$(ENV_FILE)" ] || { echo "dbt: $(ENV_FILE) not found; run make up ENV=$(ENV)" >&2; exit 1; }
+	@set -a; . "./$(ENV_FILE)"; set +a; cd dbt && uv run dbt $(or $(ARGS),build) --profiles-dir .
 
 e2e: ## Run a feature's two E2E flows (FEATURE=<feature-id> required)
 	@[ -n "$(FEATURE)" ] || { echo "e2e: FEATURE is required, e.g. make e2e FEATURE=infra-foundations" >&2; exit 1; }
