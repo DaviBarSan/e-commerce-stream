@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| In progress | [06](../../../06-transformation.md) | T6.1, T6.2, T6.3 | infra-local-resources, ingest-consumer | 6 |
+| Done | [06](../../../06-transformation.md) | T6.1, T6.2, T6.3 | infra-local-resources, ingest-consumer | 6 |
 
 ## 1. Goal
 Turn the raw table `warehouse.raw.clickstream_events` (D11) into a clean, deduplicated, typed staging layer that every later model builds on: one view for all events plus one view per **event family**, with each family's `properties` flattened and an `action` column (D12). This is the first transformation step of journey 1 (`PLAN.md` §9).
@@ -71,7 +71,7 @@ Turn the raw table `warehouse.raw.clickstream_events` (D11) into a clean, dedupl
 **E2E-1: staging from raw.**
 1. Bring up the local environment.
 2. Publish one journey-1 session (home, search, product view, add twice, remove, re-add, checkout start, purchase) through Kafka and run the ingest consumer until the events are in the raw table.
-3. Run `make dbt ARGS=deps` and `make dbt ARGS="build --select staging"`. The build passes, including every test.
+3. Run `make dbt ARGS=deps` and `make dbt ARGS="build --select +staging"` (the staging models plus their seed and source). The build passes, including every test.
 4. `stg_clickstream` has each `event_id` exactly once, with the hot columns equal to the raw ones, and the right `family`, `action` and `page_type` for each event.
 5. Each family view has exactly that family's events, with the expected `action` and typed values: money split into amount and currency, quantity, query, page and so on.
 

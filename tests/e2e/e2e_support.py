@@ -378,6 +378,20 @@ def raw_rows(env, event_ids, columns="*", dsn_key="WAREHOUSE_DSN"):
                             ([str(i) for i in event_ids],)).fetchall()
 
 
+def dbt(args, timeout=900):
+    """`make dbt ARGS=<args>` (loads .env.local); raises if dbt fails. Returns the CompletedProcess."""
+    return make("dbt", f"ARGS={args}", timeout=timeout)
+
+
+def warehouse_query(env, sql, params=(), dsn_key="DBT_WAREHOUSE_DSN"):
+    """Rows as dicts; by default as dbt_runner, which owns the staging and marts schemas."""
+    import psycopg
+    from psycopg.rows import dict_row
+
+    with psycopg.connect(env[dsn_key], row_factory=dict_row, connect_timeout=10) as conn:
+        return conn.execute(sql, params).fetchall()
+
+
 def wait_for(predicate, timeout, interval=0.5, message="condition"):
     import time
 

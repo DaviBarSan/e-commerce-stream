@@ -11,8 +11,16 @@ seed-paths: ["seeds"]
 target-path: target
 clean-targets: [target, dbt_packages]
 
+vars:
+  # Event schema versions staging accepts (spec 06 §5.1); other rows stay in raw and a warn test reports them.
+  supported_schema_versions: ["1"]
+
 models:
   clickstream:
     staging:
       +schema: staging
       +materialized: view
+
+seeds:
+  clickstream:
+    +schema: staging
