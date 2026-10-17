@@ -110,7 +110,15 @@ Partitioning by `session_id` keeps each session in order, which the sessionizati
   - The Kafka producer runs with `acks=all` and `enable.idempotence=true`.
   - Consumers commit only after the data is written (spec 05).
 - Duplicates are expected and are removed downstream using `event_id` (spec 06 `stg_clickstream`).
-- A failure to publish must **not** break the store's user request. The producer logs the error and counts it (metric or log), and the request still succeeds.
+- A failure to publish must **not** break the store's user request.
+- Events fall into two delivery classes (D15):
+
+  | Class | Event types | Path | On a broker outage |
+  |---|---|---|---|
+  | State change | `add_to_cart`, `remove_from_cart`, `purchase` | Transactional outbox in the `store` database, published by a relay (spec 02 §6.1) | Delayed: the rows wait in the outbox and are published once the broker is back |
+  | Browsing | `page_view`, `search`, `product_view`, `checkout_start` | Direct asynchronous publish | Best effort: the producer logs and counts the failure, and the event is lost |
+
+  So every database change has its event, while browsing traffic adds no database writes.
 
 ## 8. Schema versioning
 - Additive, optional fields are allowed within v1.

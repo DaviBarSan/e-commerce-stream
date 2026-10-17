@@ -1,0 +1,135 @@
+version: 2
+
+models:
+  - name: stg_clickstream
+    description: >
+      One row per event (spec 06 §5.1): the D11 columns from raw, deduplicated on event_id (earliest
+      ingested_at wins), limited to supported schema versions, with family, action and page_type from the
+      event_catalog seed. payload is kept only for the family models.
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: event_type
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('event_catalog')
+                field: event_type
+      - name: event_ts
+        data_tests: [not_null]
+      - name: user_id
+        data_tests: [not_null]
+      - name: session_id
+        data_tests: [not_null]
+      - name: page_url
+        data_tests: [not_null]
+      - name: page_type
+        description: properties.page for page_view, otherwise the event type's default page type.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['home', 'catalog', 'search', 'pdp', 'cart', 'checkout', 'confirmation']
+      - name: family
+        data_tests: [not_null]
+      - name: action
+        data_tests: [not_null]
+
+  - name: stg_events__navigation
+    description: Navigation family (page_view, search, product_view) with its properties typed.
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: action
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['page_view', 'search', 'product_view']
+      - name: page
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'page_view'"
+      - name: search_query
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'search'"
+      - name: search_results_count
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'search'"
+      - name: product_category
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'product_view'"
+      - name: product_price_minor
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'product_view'"
+      - name: currency
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'product_view'"
+
+  - name: stg_events__cart
+    description: Cart family (add, remove). quantity is the units added; remove deletes the whole line.
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: action
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['add', 'remove']
+      - name: quantity
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'add'"
+      - name: unit_price_minor
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'add'"
+      - name: currency
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'add'"
+
+  - name: stg_events__checkout
+    description: Checkout family (start, purchase). cart_total_minor is set on start, order_total_minor on purchase.
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: action
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['start', 'purchase']
+      - name: items_count
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'start'"
+      - name: cart_total_minor
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'start'"
+      - name: order_total_minor
+        data_tests:
+          - not_null:
+              config:
+                where: "action = 'purchase'"
+      - name: currency
+        data_tests: [not_null]

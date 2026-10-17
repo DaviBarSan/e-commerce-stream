@@ -46,7 +46,9 @@ services/
 | `cart_items` | `cart_id`, `product_id`, `quantity`, `unit_price_minor`, `currency` |
 | `orders` | `order_id`, `cart_id`, `user_id`, `total_minor`, `currency`, `created_at` |
 
-Money is stored as an integer amount in minor units plus a currency, like the event contract (spec 04 §3.2). The tables are created by SQLAlchemy (`metadata.create_all()`), without a migration tool; local schema changes are applied by recreating the environment. The seed is idempotent, and its size is set by configuration (default: about 200 products in 8 categories).
+| `outbox_events` | `seq`, `event_id` (unique), `payload`, `created_at`: state-change events waiting to be published (D15, §6.1) |
+
+Money is stored as an integer amount in minor units plus a currency, like the event contract (spec 04 §3.2). The `store` database is the **system of record** for products, users, carts and orders (D15). The tables are created by SQLAlchemy (`metadata.create_all()`), without a migration tool; local schema changes are applied by recreating the environment. The seed is idempotent, and its size is set by configuration (default: about 200 products in 8 categories).
 
 ## 6. API (v1)
 | Method + path | Purpose | Emits `event_type` |
@@ -68,6 +70,25 @@ Money is stored as an integer amount in minor units plus a currency, like the ev
 - The client sends the `X-Session-Id` and `X-User-Id` headers. The frontend creates them once per browser session, and bots create one per simulated user.
 - If they're missing, the backend creates them and returns them in the response headers.
 - The canonical list of event types is defined in spec 04.
+
+### 6.1 Transactional outbox (D15)
+Endpoints that change the database emit their event **inside the same transaction** as the change, so the event and the change commit or roll back together:
+
+| Endpoint | Event | Path |
+|---|---|---|
+| `POST /cart/items` | `add_to_cart` | outbox |
+| `DELETE /cart/items/{product_id}` | `remove_from_cart` | outbox |
+| `POST /checkout/complete` | `purchase` | outbox |
+| Every read-only endpoint | `page_view`, `search`, `product_view`, `checkout_start` | direct publish (spec 04 §7) |
+
+- The event is built and validated exactly as before (D13 `event_id`), then inserted into `outbox_events` with `ON CONFLICT (event_id) DO NOTHING`, so a retried request adds nothing.
+- **Relay:** a background task in the API process. In one transaction it:
+  1. Locks up to 500 rows with `SELECT … ORDER BY seq FOR UPDATE SKIP LOCKED`, which is safe with several API replicas.
+  2. Publishes them through `EventProducer` and flushes.
+  3. Deletes them if every one was delivered, otherwise rolls back so they're retried.
+
+  It re-polls immediately while batches are full and backs off to about 1 second when the table is empty.
+- **Cost:** two row writes per state-change event (insert and delete) and none for browsing events. The table stays near-empty.
 
 ## 7. Frontend screens
 - Home (featured products and categories)
@@ -96,6 +117,7 @@ Read from the environment contract (spec 01 §4):
 2. Every endpoint in §6 emits exactly one event of the listed type, carrying the correct session and user IDs.
 3. The API contract tests pass, and OpenAPI is served at `/docs`.
 4. The backend is stateless. Restarting it loses no carts.
+5. With the broker down, cart and purchase requests still succeed, and their events are published once it comes back (D15).
 
 ## 11. Open items
 None. Duplicate events from Reflex reconnects or retried handlers are handled by the `Idempotency-Key` header and the deterministic `event_id` (D13).

@@ -1,0 +1,8 @@
+event_type,family,action,default_page_type,funnel_step,is_conversion
+page_view,navigation,page_view,,,false
+search,navigation,search,search,1,false
+product_view,navigation,product_view,pdp,2,false
+add_to_cart,cart,add,pdp,3,false
+remove_from_cart,cart,remove,cart,,false
+checkout_start,checkout,start,checkout,4,false
+purchase,checkout,purchase,confirmation,5,true

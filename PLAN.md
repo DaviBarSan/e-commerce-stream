@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -27,8 +27,10 @@ A cloud-agnostic clickstream analytics pipeline. An e-commerce store and traffic
 | D9 | The store app is **Reflex (frontend) + FastAPI (store backend API)**. |
 | D10 | **`product_id` is a top-level event field** (v1), required for product event types. The other journey join keys, `cart_id` and `order_id`, are top-level too. Event-type details stay in the typed `properties`. Closes the parking-lot item (spec 04). |
 | D11 | **Raw staging table = hot fields as columns + the full payload.** Columns: `event_id` (primary key, inserts use `ON CONFLICT DO NOTHING`), `schema_version`, `event_type`, `event_ts`, `produced_at`, `ingested_at`, `session_id`, `user_id`, `anonymous_id`, `product_id`, `cart_id`, `order_id`, `source_topic`, `source_partition`, `source_offset`, and `payload` (JSONB on Postgres, JSON on BigQuery). Closes the T5.1 decision (spec 05). |
-| D12 | **Cross-database JSON: one small `json_get(column, path, type)` macro + one staging model per event type.** The macro dispatches on `target.type` (Postgres `#>>` with a cast, BigQuery `JSON_VALUE` with `SAFE_CAST`). Each event type gets a staging model that flattens its `properties` (for example `stg_events__add_to_cart`), so intermediate models and marts stay ANSI SQL. Closes the T6.2 decision (spec 06). |
+| D12 | **Cross-database JSON: one small `json_get(column, path, type)` macro + one staging model per event family.** The macro dispatches on `target.type` (Postgres `#>>` with a cast, BigQuery `JSON_VALUE` with `SAFE_CAST`). Event types are grouped into families by business object (`navigation`, `cart`, `checkout`, later `identity`), and each family gets a staging model that flattens its types' `properties` with an `action` column (for example `stg_events__cart` holds `add` and `remove`). The type → family/action mapping lives in one dbt seed, `event_catalog`, so a new event type is a seed row rather than a new model. Intermediate models and marts stay ANSI SQL. Closes the T6.2 decision (spec 06); the per-family grouping replaces the earlier one-model-per-type layout. |
 | D13 | **Deterministic `event_id`:** a UUIDv5 of the request's idempotency key plus the `event_type`. The frontend sends an `Idempotency-Key` header with each user action, and the backend derives `event_id` from it, so a retried request yields the same `event_id` and is dropped by the raw table's primary key (and by `stg_clickstream`). Closes the frontend duplicate-events item (spec 02, spec 04). |
+| D14 | **Marts follow Kimball dimensional modeling, organised by a bus matrix (spec 06 §5.4).** Conformed dimensions `dim_date`, `dim_time_of_day`, `dim_users`, `dim_sessions`, `dim_products`, `dim_page`, `dim_event_type`. One fact per business process: `fct_events` (transaction, factless), `fct_sessions` (accumulating snapshot: the funnel), `fct_carts` (accumulating snapshot: the cart lifecycle) and `fct_order_lines` (transaction: sales). Rollups `agg_funnel_daily` and `fct_orders`. Natural keys and SCD Type 1, plus a hashed `session_key`. Money is additive only per currency, and rates are computed at query time. |
+| D15 | **The store database is the system of record; state-change events go through a transactional outbox.** Events that describe a database change (`add_to_cart`, `remove_from_cart`, `purchase`) are written to `store.outbox_events` in the same transaction as the change, and a relay publishes them at least once, so a broker outage delays them instead of losing them. Browsing events (`page_view`, `search`, `product_view`, `checkout_start`) keep the direct asynchronous publish: they have no database counterpart to diverge from, and routing them through the outbox would turn read traffic into writes. The warehouse's only input is the event stream (no CDC). |
 
 ## 3. Environments
 
@@ -114,6 +116,7 @@ How to read the tables:
 | T3.4 ✅ | Frontend screens: home, search, product detail, cart and checkout | 02 | T3.2 | You can complete a purchase flow manually in the browser |
 | T3.5 | Dockerfiles for the backend and frontend | 02 | T3.3, T3.4 | The images build |
 | T3.6 | `modules/local/app`: Terraform runs the backend and frontend containers | 01, 02 | T3.5 | After `make up`, the store opens on `:3000` and the API on `:8000` |
+| T3.7 | Transactional outbox for state-change events, plus the relay (D15) | 02, 04 | T3.3 | With the broker down, cart and purchase requests still succeed, and their events reach the raw table exactly once after it comes back |
 
 ### Phase 4: Traffic bots
 
@@ -136,18 +139,19 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T6.1 | dbt project and `local` profile (`dbt-postgres`) | 06 | T1.5 | `dbt debug` passes |
-| T6.2 | Cross-database `json_get` macro per D12 | 06 | T6.1, T5.1 | The macro compiles on Postgres |
-| T6.3 | `stg_clickstream`: parse and deduplicate on `event_id` | 06 | T6.2, T5.2 | `unique` and `not_null` tests pass |
-| T6.4 | `int_sessions`: sessionization with a 30-minute inactivity window | 06 | T6.3 | The session tests pass on fixture data |
-| T6.5 | Marts: `fct_events`, `fct_conversion_funnels`, `dim_users` | 06 | T6.4 | `dbt build` passes |
+| T6.1 ✅ | dbt project and `local` profile (`dbt-postgres`) | 06 | T1.5 | `dbt debug` passes |
+| T6.2 ✅ | Cross-database `json_get` macro per D12 | 06 | T6.1, T5.1 | The macro compiles on Postgres |
+| T6.3 ✅ | `stg_clickstream` (parse and deduplicate on `event_id`), the `event_catalog` seed and the family staging models (D12) | 06 | T6.2, T5.2 | `unique` and `not_null` tests pass, and every event type maps to a family |
+| T6.4 | Conformed dimensions and `int_sessions` (30-minute inactivity window) | 06 | T6.3 | The session tests pass on fixture data |
+| T6.5 | Session marts: `fct_events`, `fct_sessions`, `agg_funnel_daily` | 06 | T6.4 | `dbt build` passes and funnel step counts never increase |
+| T6.6 | Commerce marts: `int_cart_lines`, `dim_products`, `fct_carts`, `fct_order_lines`, `fct_orders` (D14) | 06 | T6.5, T3.7 | Order totals in the marts reconcile with `store.orders` |
 
 ### Phase 7: Orchestration
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
 | T7.1 | `modules/local/airflow`: Airflow containers (LocalExecutor, metadata in the `airflow` database) | 01, 05 | T1.5 | The Airflow UI opens on `:8080` |
-| T7.2 | DAG `clickstream_transform`: freshness check, `dbt build`, then `dbt test` | 05, 06 | T7.1, T6.5 | The DAG runs green on schedule |
+| T7.2 | DAG `clickstream_transform`: freshness check, `dbt build`, then `dbt test` | 05, 06 | T7.1, T6.6 | The DAG runs green on schedule |
 | T7.3 | Local end-to-end test | all | T7.2, T4.3, T5.3 | Bot traffic shows up in the marts within one DAG cycle |
 
 ### Phase 8: GCP rollout (starts after T7.3)
@@ -169,13 +173,14 @@ The tasks will follow Phase 8's pattern once AWS comes back into scope (D7).
 
 ## 7. Critical path
 
-`T0 → T1.1–T1.6 → T2.1–T2.3 → T3.2–T3.3 → T5.1–T5.2 → T6.3–T6.5 → T7.2 → T7.3 → Phase 8`
+`T0 → T1.1–T1.6 → T2.1–T2.3 → T3.2–T3.3 → T5.1–T5.2 → T6.3–T6.6 → T7.2 → T7.3 → Phase 8`
 
 Tasks that can run in parallel once their dependencies are met:
 - T2.1 alongside Phase 1
 - T3.4 alongside T3.3
 - T4.* alongside T5.*
 - T6.1 and T7.1 alongside Phase 3–5 work
+- T3.7 alongside T6.3–T6.5 (T6.6 needs both)
 
 ## 8. Parking lot (deferred decisions)
 
@@ -186,7 +191,7 @@ Tasks that can run in parallel once their dependencies are met:
 | GCP ingestion: Cloud Run consumer or BigQuery subscription | spec 05 | T8.4 |
 | Stream processor technology (Bytewax / Quix Streams, Kafka Streams / ksqlDB, Flink; Dataflow on GCP) | new spec, future iteration | Journeys 3 and 9 (§9) |
 | Derived-events contract and topic `clickstream.derived.v1` | spec 04, future iteration | Journeys 3 and 9 (§9) |
-| Scope of journey 10: order status events vs CDC from `store` | spec 02 / 05, future iteration | Journey 10 (§9) |
+| Scope of journey 10: order status events vs CDC from `store` (D15's outbox makes order status events the natural path, but the choice is still open) | spec 02 / 05, future iteration | Journey 10 (§9) |
 | Bot ground-truth labels: `context.traffic {synthetic, persona}` in events, or a separate bot run log | spec 03 / 04, future iteration | Journeys 2–9 validation (§9) |
 
 ## 9. User journeys

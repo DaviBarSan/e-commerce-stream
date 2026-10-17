@@ -1,0 +1,13 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: "{{ env_var('WAREHOUSE_RAW_SCHEMA', 'raw') }}"
+    description: Raw clickstream events written by the ingest consumer (D11).
+    tables:
+      - name: clickstream_events
+        loaded_at_field: ingested_at
+        config:
+          freshness:
+            warn_after: {count: 30, period: minute}
+            error_after: {count: 2, period: hour}

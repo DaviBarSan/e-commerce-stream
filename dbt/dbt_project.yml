@@ -1,0 +1,26 @@
+# dbt project (spec 06 §3). Run through `make dbt ARGS="..."`, which loads .env.<ENV>.
+name: clickstream
+version: "0.1.0"
+profile: clickstream
+config-version: 2
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+target-path: target
+clean-targets: [target, dbt_packages]
+
+vars:
+  # Event schema versions staging accepts (spec 06 §5.1); other rows stay in raw and a warn test reports them.
+  supported_schema_versions: ["1"]
+
+models:
+  clickstream:
+    staging:
+      +schema: staging
+      +materialized: view
+
+seeds:
+  clickstream:
+    +schema: staging

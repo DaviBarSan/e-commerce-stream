@@ -1,0 +1,31 @@
+version: 2
+
+seeds:
+  - name: event_catalog
+    description: >
+      The single source of event semantics (D12, spec 06 §5.1): each contract event type mapped to its
+      family, its action within the family, the page type it happens on, its funnel step and whether it
+      is a conversion. A new event type is a new row here.
+    columns:
+      - name: event_type
+        description: The contract event_type (spec 04 §4).
+        data_tests:
+          - unique
+          - not_null
+      - name: family
+        description: The business object the event belongs to; one staging model per family.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['navigation', 'cart', 'checkout']
+      - name: action
+        description: What happened within the family (for example add or remove for the cart).
+        data_tests:
+          - not_null
+      - name: default_page_type
+        description: The page type the event happens on; empty for page_view, which carries its own page.
+      - name: funnel_step
+        description: The journey-1 funnel step (1 search … 5 purchase); empty when not a funnel step.
+      - name: is_conversion
+        description: True for the event that completes a conversion.
