@@ -95,7 +95,7 @@ Ports for later phases:
 - **Kafka topics:** `clickstream.events.v1` (3 partitions, 7-day retention) and `clickstream.events.dlq` (1 partition, 14-day retention).
 - **Postgres databases and roles:**
   - `store` with role `store_app`
-  - `warehouse` with schemas `raw`, `staging`, `marts` and roles `ingest_writer` and `dbt_runner`
+  - `warehouse` with schemas `raw`, `staging`, `intermediate`, `marts` and roles `ingest_writer` and `dbt_runner`
   - `airflow` with role `airflow`
 - **Credentials:** made with `random_password` and kept in local state. This is acceptable for local only.
 
@@ -105,7 +105,7 @@ Ports for later phases:
 | GCS bucket (bootstrap, created once) | Terraform state backend |
 | Project services | Enable the Pub/Sub, BigQuery, Run, Artifact Registry and IAM APIs |
 | Pub/Sub topic and subscription | Events, plus a dead-letter topic |
-| BigQuery datasets | `raw`, `staging`, `marts` |
+| BigQuery datasets | `raw`, `staging`, `intermediate`, `marts` |
 | GCS bucket | Landing zone and archive (optional) |
 | Artifact Registry | Container images |
 | Service accounts | One per workload (app, bot, consumer, dbt), with least-privilege role bindings |

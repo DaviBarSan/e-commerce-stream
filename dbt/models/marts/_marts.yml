@@ -1,0 +1,177 @@
+version: 2
+
+models:
+  # --- conformed dimensions (spec 06 §5.3) ---
+  - name: dim_date
+    description: One row per calendar day, from var('dim_date_start') to a year ahead.
+    columns:
+      - name: date_day
+        data_tests: [unique, not_null]
+      - name: day_of_week
+        description: ISO day of week, 1 = Monday … 7 = Sunday.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7]
+                quote: false
+
+  - name: dim_time_of_day
+    description: One row per hour of the day (24 rows).
+    columns:
+      - name: hour_of_day
+        data_tests: [unique, not_null]
+      - name: day_part
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['night', 'morning', 'afternoon', 'evening']
+
+  - name: dim_page
+    description: One row per page type, from the page_types seed.
+    columns:
+      - name: page_type
+        data_tests: [unique, not_null]
+
+  - name: dim_event_type
+    description: One row per event type, from the event_catalog seed.
+    columns:
+      - name: event_type
+        data_tests: [unique, not_null]
+
+  - name: dim_users
+    description: One row per user_id. Type 1, recomputed on every build.
+    columns:
+      - name: user_id
+        data_tests: [unique, not_null]
+      - name: session_count
+        data_tests: [not_null]
+
+  - name: dim_sessions
+    description: One row per derived session.
+    columns:
+      - name: session_key
+        data_tests: [unique, not_null]
+      - name: user_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: landing_page_type
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_page')
+                field: page_type
+      - name: exit_page_type
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_page')
+                field: page_type
+
+  # --- facts (bus matrix, spec 06 §5.4) ---
+  - name: fct_events
+    description: Browsing fact. One row per event; factless (the measure is the row count).
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: date_day
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: hour_of_day
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time_of_day')
+                field: hour_of_day
+      - name: user_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: session_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_sessions')
+                field: session_key
+      - name: page_type
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_page')
+                field: page_type
+      - name: event_type
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_event_type')
+                field: event_type
+
+  - name: fct_sessions
+    description: >
+      Session fact: the journey-1 funnel (search → product view → add to cart → checkout → purchase) as an
+      accumulating snapshot. Steps are ordered, so reached counts never increase down the funnel.
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "duration_seconds >= 0"
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "reached_search >= reached_product_view and reached_product_view >= reached_add_to_cart and reached_add_to_cart >= reached_checkout and reached_checkout >= reached_purchase"
+    columns:
+      - name: session_key
+        data_tests:
+          - unique
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_sessions')
+                field: session_key
+      - name: user_id
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: date_day
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: hour_of_day
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_time_of_day')
+                field: hour_of_day
+      - name: landing_page_type
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_page')
+                field: page_type
+
+  # --- rollups ---
+  - name: agg_funnel_daily
+    description: Sessions reaching each funnel step, per day and landing page type.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [date_day, landing_page_type]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "sessions_reached_search >= sessions_reached_product_view and sessions_reached_product_view >= sessions_reached_add_to_cart and sessions_reached_add_to_cart >= sessions_reached_checkout and sessions_reached_checkout >= sessions_reached_purchase"

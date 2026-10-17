@@ -1,0 +1,18 @@
+version: 2
+
+models:
+  - name: int_sessions
+    description: >
+      One row per event with its derived session (spec 06 §5.2): a new session starts after 30 minutes
+      of inactivity per user_id. client_session_id is the client's tab-level session_id, kept for
+      comparison. Incremental runs recompute every event of each user with new events.
+    columns:
+      - name: event_id
+        data_tests: [unique, not_null]
+      - name: user_id
+        data_tests: [not_null]
+      - name: session_key
+        description: dbt_utils.generate_surrogate_key(user_id, session_seq).
+        data_tests: [not_null]
+      - name: session_seq
+        data_tests: [not_null]

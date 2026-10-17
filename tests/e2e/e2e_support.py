@@ -378,6 +378,30 @@ def raw_rows(env, event_ids, columns="*", dsn_key="WAREHOUSE_DSN"):
                             ([str(i) for i in event_ids],)).fetchall()
 
 
+def ingest_events(env, events, log_dir, timeout=60):
+    """Publish events with the telemetry producer and run the ingest consumer until all are in raw."""
+    import uuid
+
+    from telemetry import get_producer
+
+    ids = [str(e.event_id) for e in events]
+    group = start_group_at_end(env, f"e2e-ingest-{uuid.uuid4().hex[:8]}")
+    producer = get_producer(env)
+    for event in events:
+        producer.send_event(event)
+    assert producer.flush(30) == 0
+    producer.close()
+
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    consumer = ConsumerProcess(env, Path(log_dir) / "consumer.log", INGEST_GROUP_ID=group,
+                               INGEST_FLUSH_SECONDS=1).start()
+    try:
+        wait_for(lambda: len(raw_rows(env, ids, "event_id")) == len(ids), timeout, message="events in raw")
+    finally:
+        consumer.stop()
+    return ids
+
+
 def dbt(args, timeout=900):
     """`make dbt ARGS=<args>` (loads .env.local); raises if dbt fails. Returns the CompletedProcess."""
     return make("dbt", f"ARGS={args}", timeout=timeout)

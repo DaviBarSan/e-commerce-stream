@@ -1,0 +1,9 @@
+user_id,event_id,event_ts,expected_session_seq
+fixture-u1,u1-e1,2026-01-01 10:00:00,1
+fixture-u1,u1-e2,2026-01-01 10:29:00,1
+fixture-u1,u1-e3,2026-01-01 11:00:00,2
+fixture-u1,u1-e4,2026-01-01 11:29:00,2
+fixture-u2,u2-e1,2026-01-01 10:00:00,1
+fixture-u2,u2-e2,2026-01-01 10:30:00,1
+fixture-u2,u2-e3,2026-01-01 11:01:00,2
+fixture-u2,u2-e4,2026-01-01 11:01:00,2

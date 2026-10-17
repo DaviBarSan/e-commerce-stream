@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`); T6.4–T6.5 done (`dbt-sessions-funnel`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -142,8 +142,8 @@ How to read the tables:
 | T6.1 ✅ | dbt project and `local` profile (`dbt-postgres`) | 06 | T1.5 | `dbt debug` passes |
 | T6.2 ✅ | Cross-database `json_get` macro per D12 | 06 | T6.1, T5.1 | The macro compiles on Postgres |
 | T6.3 ✅ | `stg_clickstream` (parse and deduplicate on `event_id`), the `event_catalog` seed and the family staging models (D12) | 06 | T6.2, T5.2 | `unique` and `not_null` tests pass, and every event type maps to a family |
-| T6.4 | Conformed dimensions and `int_sessions` (30-minute inactivity window) | 06 | T6.3 | The session tests pass on fixture data |
-| T6.5 | Session marts: `fct_events`, `fct_sessions`, `agg_funnel_daily` | 06 | T6.4 | `dbt build` passes and funnel step counts never increase |
+| T6.4 ✅ | Conformed dimensions and `int_sessions` (30-minute inactivity window) | 06 | T6.3 | The session tests pass on fixture data |
+| T6.5 ✅ | Session marts: `fct_events`, `fct_sessions`, `agg_funnel_daily` | 06 | T6.4 | `dbt build` passes and funnel step counts never increase |
 | T6.6 | Commerce marts: `int_cart_lines`, `dim_products`, `fct_carts`, `fct_order_lines`, `fct_orders` (D14) | 06 | T6.5, T3.7 | Order totals in the marts reconcile with `store.orders` |
 
 ### Phase 7: Orchestration

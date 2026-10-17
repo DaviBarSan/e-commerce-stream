@@ -25,12 +25,12 @@
 - **Kafka topics:**
   - `clickstream.events.v1`: 3 partitions, retention 168 h
   - `clickstream.events.dlq`: 1 partition, retention 336 h
-- **Postgres databases and schemas:** `store`, `warehouse` (schemas `raw`, `staging`, `marts`), `airflow`.
+- **Postgres databases and schemas:** `store`, `warehouse` (schemas `raw`, `staging`, `intermediate`, `marts`; `intermediate` added by `dbt-sessions-funnel`), `airflow`.
 - **Roles and grants:**
   - `store_app`: owner of `store`
   - `ingest_writer`: owns the `raw` schema, so it can create the raw table in `raw` (the ingestion feature) and write to it. Default privileges give `dbt_runner` `SELECT` on every table `ingest_writer` creates in `raw`.
-  - `dbt_runner`: `USAGE` on `raw` plus those `SELECT` grants, and owns `staging` and `marts`. It has no write access to `raw`.
-  - `ingest_writer` has no access to `staging` or `marts`.
+  - `dbt_runner`: `USAGE` on `raw` plus those `SELECT` grants, and owns `staging`, `intermediate` and `marts`. It has no write access to `raw`.
+  - `ingest_writer` has no access to `staging`, `intermediate` or `marts`.
   - `airflow`: owner of `airflow`
   - Passwords come from `random_password`.
 - **Contract:**
