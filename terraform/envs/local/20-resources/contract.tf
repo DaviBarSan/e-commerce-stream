@@ -62,6 +62,7 @@ output "service_credentials" {
     warehouse_raw_schema   = postgresql_schema.raw.name
     events_topic           = kafka_topic.this["events"].name
     events_dlq_topic       = kafka_topic.this["events_dlq"].name
+    events_partitions      = kafka_topic.this["events"].partitions
   }
   sensitive = true
 }

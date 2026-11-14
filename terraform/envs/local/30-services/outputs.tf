@@ -27,3 +27,8 @@ output "store_containers" {
   description = "Names of the long-running store containers."
   value       = module.app.containers
 }
+
+output "consumer_containers" {
+  description = "Names of the ingest consumer containers."
+  value       = module.consumer.containers
+}

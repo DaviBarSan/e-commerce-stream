@@ -9,7 +9,7 @@
 !telemetry/
 !services/store_backend/
 !services/store_frontend/
-!services/ingest_consumer/pyproject.toml
+!services/ingest_consumer/
 
 dbt/target/
 dbt/logs/

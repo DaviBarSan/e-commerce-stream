@@ -648,3 +648,32 @@ def ingest_until(env, group, event_ids, log_path, timeout=60):
                  message=f"{len(event_ids)} events in raw")
     finally:
         consumer.stop()
+
+
+# --- service containers (ingest-deploy, local-e2e) ---------------------------------------------
+
+def consumer_container(n=1):
+    """Docker name of the n-th ingest consumer container (ingest-deploy)."""
+    return f"{project_prefix()}ingest-consumer-{n}"
+
+
+def container_log_records(container, event):
+    """JSON log records of one event type from a container's logs (stdout and stderr)."""
+    out = run(["docker", "logs", container], check=True)
+    records = []
+    for line in (out.stdout + out.stderr).splitlines():
+        start = line.find("{")
+        if start >= 0:
+            try:
+                record = json.loads(line[start:])
+            except ValueError:
+                continue
+            if record.get("event") == event:
+                records.append(record)
+    return records
+
+
+def container_state(container):
+    """[id, restart count, running] of a container."""
+    out = run(["docker", "inspect", "-f", "{{.Id}} {{.RestartCount}} {{.State.Running}}", container], check=True)
+    return out.stdout.split()

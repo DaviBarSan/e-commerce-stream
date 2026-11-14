@@ -6,7 +6,7 @@ Living snapshot of where development stands and what comes next. Update it in th
 
 ## 1. Summary
 
-Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `make up`, PR #14); Phase 5 is partly done; Phase 6 is done (#13); Phase 7 has its Airflow base (T7.1) done (#11). The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
+Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `make up`, #14); Phase 5 is done (the consumer runs as a container, PR #15); Phase 6 is done (#13); Phase 7 has its Airflow base (T7.1) done (#11). The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
 
 ## 2. Feature board
 
@@ -26,8 +26,8 @@ Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `
 | F02.4 store-outbox | T3.7 | Done (merged, #12) | n/a |
 | F06.3 dbt-commerce-marts | T6.6 | Done (merged, #13) | n/a |
 | F05.4 airflow-transform-dag | T7.2 | Not started | yes |
-| F02.3 store-deploy | T3.5, T3.6 | Done on `feature/store-deploy` (6/6), PR #14 open | n/a |
-| F05.2 ingest-deploy | T5.3 | Not started | yes |
+| F02.3 store-deploy | T3.5, T3.6 | Done (merged, #14) | n/a |
+| F05.2 ingest-deploy | T5.3 | Done on `feature/ingest-deploy` (7/7), PR #15 open | n/a |
 | F03.1 bot-simulation | T4.1, T4.2 | Not started (lowered priority) | yes |
 | F03.2 bot-deploy | T4.3 | Not started (lowered priority) | no: F03.1 + F02.3 |
 | F05.5 local-e2e | T7.3 | Not started | no: F05.4 + F05.2 + F03.2 + F02.3 + F02.4 |
@@ -50,8 +50,8 @@ Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `
 3. ~~**F05.3 airflow-local (T7.1).**~~ Done 2026-11-14 (#11). Airflow `3.3.2-python3.12`, `30-services` stack, dbt `1.12.5` in `/opt/dbt-venv`.
 4. ~~**F02.4 store-outbox (T3.7).**~~ Done 2026-11-14 (#12).
 5. ~~**F06.3 dbt-commerce-marts (T6.6).**~~ Done 2026-11-14 (#13).
-6. **(Current)** **F02.3 store-deploy (T3.5, T3.6).** Implemented and green on `feature/store-deploy`; PR #14 open. The storefront on `:3000` and the API on `:8000` under `make up`.
-7. **F05.2 ingest-deploy (T5.3)**, in `30-services`: clicks reach `raw.clickstream_events` without a host process.
+6. ~~**F02.3 store-deploy (T3.5, T3.6).**~~ Done 2026-11-14 (#14). The storefront on `:3000` and the API on `:8000` under `make up`.
+7. **(Current)** **F05.2 ingest-deploy (T5.3).** Implemented and green on `feature/ingest-deploy`; PR #15 open. clicks reach `raw.clickstream_events` without a host process.
 8. **F05.4 airflow-transform-dag (T7.2).** `dbt source freshness`, `dbt build` (with tests), run summary.
 9. **F03.1 bot-simulation (T4.1, T4.2)**, then **F03.2 bot-deploy (T4.3)**. Suggested default for spec 03 §10: API mode only.
 10. **F05.5 local-e2e (T7.3).** The MVP gate; opens Phase 8 (D5).
@@ -85,3 +85,6 @@ Nothing blocks local work. Open `PLAN.md` §8 entries gate Phase 8 and later onl
 | 2026-11-14 | PR #13 merged (`5fa8a4a`); Phase 6 complete. Steps reordered for hands-on use (store-deploy → ingest-deploy → transform DAG). Step 6 (F02.3 store-deploy) started on `feature/store-deploy`. |
 | 2026-11-14 | Step 6 (F02.3 store-deploy) implemented: `store-deploy` 6/6. Images pinned on `python:3.12.15-slim-bookworm` and `uv:0.13.4`; host-run test servers moved to :18000 / :13000. Fixes on the way: the API venv is built at its final path (`/opt/venv`); the storefront healthcheck's `start_period` is written as `1m0s`. An interrupted apply left an untracked `store-api` container, removed by hand. Regressions: store-api 7/7, store-frontend 6/6, store-outbox 5/5, dbt-commerce-marts 6/6, airflow-local 9/9, infra-local-resources 9/9, infra-local-platform 9/9. T3.5–T3.6 ticked. PR pending. |
 | 2026-11-14 | PR #14 opened for `feature/store-deploy` (F02.3). |
+| 2026-11-14 | PR #14 merged (`adce61f`); Phase 3 complete. Step 7 (F05.2 ingest-deploy) started on `feature/ingest-deploy`. Regression phases now rerun only the features a change affects (owner's request). |
+| 2026-11-14 | Step 7 (F05.2 ingest-deploy) implemented: `ingest-deploy` 7/7 (one fix: the replicas test waits for a stable 3-member group before publishing). Regression scoped to the one affected feature: ingest-consumer 6/6 (its flush-log check counts inserts plus duplicates). T5.3 ticked; Phase 5 complete. PR pending. |
+| 2026-11-14 | PR #15 opened for `feature/ingest-deploy` (F05.2). |
