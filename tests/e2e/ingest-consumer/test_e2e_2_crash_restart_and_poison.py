@@ -15,7 +15,7 @@ from telemetry import get_producer, serialize_event
 def test_hard_kill_mid_ingest_loses_nothing(tmp_path):
     env = local_env()
     run_id, now = uuid.uuid4().hex[:8], datetime.now(timezone.utc)
-    events = [journey_1_event(run_id, n % 40, n, now) for n in range(2000)]
+    events = [journey_1_event(run_id, n % 40, n // 40, now) for n in range(2000)]  # 40 sessions, steps in order
     ids = [e.event_id for e in events]
     group = start_group_at_end(env, f"e2e-{run_id}")  # skip earlier runs' history
     producer = get_producer(env)

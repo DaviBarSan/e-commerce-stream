@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| Not started | [06](../../../06-transformation.md) | T6.6 | dbt-sessions-funnel, store-outbox | 6 |
+| Done | [06](../../../06-transformation.md) | T6.6 | dbt-sessions-funnel, store-outbox | 6 |
 
 ## 1. Goal
 Complete the dimensional model (D14) with the cart and sales processes: the cart lifecycle as an accumulating snapshot, the sales transaction fact at order-line grain and the product dimension. Prove that the warehouse agrees with the store database, its system of record (D15).
@@ -22,6 +22,7 @@ Complete the dimensional model (D14) with the cart and sales processes: the cart
 - **`int_cart_lines`** (incremental on `cart_id`):
   - Reads `stg_events__cart` joined to `stg_clickstream` for `cart_id`, `product_id` and `user_id`.
   - Per (cart, product): `quantity` is the sum of `add` quantities after the last `remove`, `unit_price_minor` is the latest add's price, and `is_removed` is set when the last action is `remove`.
+  - Incremental runs recompute every line of each cart that has new events (watermark: `last_ingested_at`), like `int_sessions` does per user.
 - **`dim_products`**: one row per `product_id` seen in navigation or cart events, with `category` (latest `product_view`) and the last seen price and currency.
 - **`fct_carts`**: one row per `cart_id`, with:
   - `user_id` and `session_key` (the session of the first add)
@@ -32,10 +33,10 @@ Complete the dimensional model (D14) with the cart and sales processes: the cart
 - **`fct_order_lines`**:
   - For each `purchase` (via `order_id` and `cart_id`), the non-removed lines of its cart.
   - Columns: `quantity`, `unit_price_minor`, `line_total_minor = quantity * unit_price_minor`, `currency`, `order_id`, `cart_id`, `product_id`, `user_id`, `session_key`, `date_day`, `hour_of_day`.
-- **`fct_orders`**: one row per `order_id`, with `items_count`, `units`, `order_total_minor` (summed from the lines) and `currency`.
+- **`fct_orders`**: one row per purchase event (`order_id`), with `items_count`, `units`, `order_total_minor` (summed from the lines), `purchase_total_minor` (the purchase event's own total) and `currency`.
 - **Tests:**
   - Grain keys and bus-matrix relationships (spec 06 §5.4).
-  - The singular test: `sum(line_total_minor)` per order equals the purchase event's `order_total_minor`.
+  - The singular test: `sum(line_total_minor)` per order equals the purchase event's `order_total_minor`, checked as `fct_orders.order_total_minor = purchase_total_minor` (a purchase with no lines fails). It reads only `fct_orders`, so a build that selects only upstream models (`dbt-foundations` runs `--select +staging`) never runs it against a stale mart.
   - `minutes_to_* >= 0`.
 
 ## 4. Interfaces
@@ -57,10 +58,12 @@ Complete the dimensional model (D14) with the cart and sales processes: the cart
 **E2E-2: reconciliation with the system of record.**
 1. Stop Kafka, complete two purchases through the API (they wait in the outbox), and start Kafka again.
 2. Ingest the events and run `make dbt ARGS=build`.
-3. For every order, `marts.fct_orders` (count, `order_id`, `order_total_minor`, `currency`) equals `store.orders`, read through `STORE_DB_DSN`. Nothing was lost during the outage.
+3. For every order placed in this flow, `marts.fct_orders` (count, `order_id`, `order_total_minor`, `currency`) equals `store.orders`, read through `STORE_DB_DSN`. Nothing was lost during the outage. (`store.orders` also holds orders from earlier flows whose events were never ingested, because no consumer ran at the time; reconciling the whole store is `local-e2e`'s job, once the consumer runs as a container.)
 
 ## 6. Definition of done
 Both flows pass through `make e2e FEATURE=dbt-commerce-marts`, and the `dbt-sessions-funnel` flows still pass.
 
 ## 7. Open items
-None.
+None. Two fixes landed with this feature:
+- The `ingest-consumer` and `telemetry-producer` E2E-2 fixtures built one cart per event (`journey_1_event(run_id, n % K, n, …)`), so their purchases had no cart lines and failed the line-total test. They now step through each session in order (`n % K, n // K`). The local environment was reset once (`make down`) to drop that history.
+- The store outbox relay now drains pending rows on a clean shutdown (`store-outbox`).

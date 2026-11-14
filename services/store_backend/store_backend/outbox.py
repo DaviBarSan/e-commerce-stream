@@ -35,10 +35,20 @@ class OutboxRelay:
         self._task = asyncio.create_task(self._run(), name="outbox-relay")
 
     async def stop(self) -> None:
-        """Let the current cycle finish (it runs in a worker thread), then stop."""
+        """Let the current cycle finish (it runs in a worker thread), then drain what's left and stop."""
         self._stopping.set()
         if self._task is not None:
             await self._task
+        await asyncio.to_thread(self._drain)
+
+    def _drain(self) -> None:
+        """Publish pending rows before shutdown. Stops at the first cycle that delivers nothing (for example
+        while the broker is down): those rows stay in the outbox for the next start."""
+        try:
+            while self.cycle() > 0:
+                pass
+        except Exception:
+            log.exception("outbox: drain on shutdown failed; pending rows stay in the outbox")
 
     async def _run(self) -> None:
         while not self._stopping.is_set():

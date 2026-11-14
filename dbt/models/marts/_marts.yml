@@ -46,6 +46,14 @@ models:
       - name: session_count
         data_tests: [not_null]
 
+  - name: dim_products
+    description: >
+      One row per product_id seen in events: category from the latest product view, last seen price and
+      currency. Names arrive only with store data (journey 10). Type 1, recomputed on every build.
+    columns:
+      - name: product_id
+        data_tests: [unique, not_null]
+
   - name: dim_sessions
     description: One row per derived session.
     columns:
@@ -112,6 +120,13 @@ models:
               arguments:
                 to: ref('dim_page')
                 field: page_type
+      - name: product_id
+        description: Set on product and cart events only (bus matrix "when present").
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_products')
+                field: product_id
       - name: event_type
         data_tests:
           - not_null
@@ -165,6 +180,114 @@ models:
                 to: ref('dim_page')
                 field: page_type
 
+  - name: fct_carts
+    description: >
+      Cart fact: the cart lifecycle as an accumulating snapshot, one row per cart. status is converted once
+      purchased, abandoned when the last activity is more than 30 minutes before the newest event in the
+      warehouse, open otherwise (spec 06 §5.3; the store's carts.status is not used, D15).
+    data_tests:
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "minutes_to_checkout >= 0"
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "minutes_to_purchase >= 0"
+    columns:
+      - name: cart_id
+        data_tests: [unique, not_null]
+      - name: user_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: session_key
+        description: The session of the cart's first add (bus matrix role "origin").
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_sessions')
+                field: session_key
+      - name: created_date_day
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: checkout_date_day
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: purchased_date_day
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['open', 'abandoned', 'converted']
+
+  - name: fct_order_lines
+    description: >
+      Sales fact: one row per product in one order, from the purchase's cart lines that weren't removed.
+      order_id is a degenerate dimension. Money is additive only within a currency.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [order_id, product_id]
+      - dbt_utils.expression_is_true:
+          arguments:
+            expression: "quantity > 0 and line_total_minor = quantity * unit_price_minor"
+    columns:
+      - name: order_id
+        data_tests: [not_null]
+      - name: product_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_products')
+                field: product_id
+      - name: user_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_users')
+                field: user_id
+      - name: session_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_sessions')
+                field: session_key
+      - name: date_day
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: hour_of_day
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_time_of_day')
+                field: hour_of_day
+      - name: currency
+        data_tests: [not_null]
+
   # --- rollups ---
   - name: agg_funnel_daily
     description: Sessions reaching each funnel step, per day and landing page type.
@@ -175,3 +298,16 @@ models:
       - dbt_utils.expression_is_true:
           arguments:
             expression: "sessions_reached_search >= sessions_reached_product_view and sessions_reached_product_view >= sessions_reached_add_to_cart and sessions_reached_add_to_cart >= sessions_reached_checkout and sessions_reached_checkout >= sessions_reached_purchase"
+
+  - name: fct_orders
+    description: >
+      One row per purchase event. Counts and order_total_minor are summed from fct_order_lines;
+      purchase_total_minor is the purchase event's own total (reconciled by
+      assert_order_lines_match_purchase_total).
+    columns:
+      - name: order_id
+        data_tests: [unique, not_null]
+      - name: purchase_total_minor
+        data_tests: [not_null]
+      - name: currency
+        data_tests: [not_null]
