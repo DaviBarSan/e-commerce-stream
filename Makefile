@@ -9,18 +9,22 @@ include versions.env
 export TF_VAR_kafka_image    := $(KAFKA_IMAGE)
 export TF_VAR_kafka_ui_image := $(KAFKA_UI_IMAGE)
 export TF_VAR_postgres_image := $(POSTGRES_IMAGE)
+export TF_VAR_airflow_image  := $(AIRFLOW_IMAGE)
+export TF_VAR_dbt_core_version     := $(DBT_CORE_VERSION)
+export TF_VAR_dbt_postgres_version := $(DBT_POSTGRES_VERSION)
 
 ENV ?= local
 TF_ENV_DIR := terraform/envs/$(ENV)
 # Stacks in apply order; `down` walks them in reverse.
 ifeq ($(ENV),local)
-STACKS := $(TF_ENV_DIR)/10-platform $(TF_ENV_DIR)/20-resources
+STACKS := $(TF_ENV_DIR)/10-platform $(TF_ENV_DIR)/20-resources $(TF_ENV_DIR)/30-services
+# 20-resources writes .env.local (local_sensitive_file.env); 30-services only runs containers (D16).
+ENV_STACK := $(TF_ENV_DIR)/20-resources
 else
 STACKS := $(TF_ENV_DIR)
+ENV_STACK := $(TF_ENV_DIR)
 endif
 REVERSED_STACKS := $(shell printf '%s\n' $(STACKS) | tac)
-# The last stack writes .env.<ENV> (local_sensitive_file.env).
-ENV_STACK := $(lastword $(STACKS))
 ENV_FILE := .env.$(ENV)
 
 # Fails with "not yet implemented" until every stack of $(ENV) has Terraform files.

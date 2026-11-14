@@ -78,22 +78,24 @@ Inserts use `ON CONFLICT (event_id) DO NOTHING`, so broker redelivery and retrie
 ### 7. Airflow deployment (local)
 | Aspect | Choice |
 |---|---|
-| Provisioning | Terraform `modules/local/airflow` (docker provider) |
+| Provisioning | Terraform `modules/local/airflow` (docker provider), in the `30-services` stack (D16) |
+| Image | Custom image built by Terraform from `services/airflow/Dockerfile`: `FROM` the pinned `AIRFLOW_IMAGE` (Airflow 3), plus dbt in its own virtualenv and the dbt project baked in (D17) |
 | Executor | LocalExecutor |
 | Metadata DB | The `airflow` database on the shared Postgres (spec 01) |
-| Containers | `airflow-init` (one-shot DB migration and admin user), `scheduler`, `webserver` (or `api-server`, depending on the pinned version) on port 8080 |
+| Containers | `airflow-init` (one-shot `airflow db migrate`), `api-server` (UI and REST API) on port 8080, `scheduler`, `dag-processor` |
+| Auth | Simple auth manager with one `admin` user; the password is `AIRFLOW_ADMIN_PASSWORD` from the contract |
 | DAGs | `dags/` bind-mounted into the containers |
-| dbt execution | `BashOperator` running `dbt`, installed in the Airflow image. The alternative is `DockerOperator` running a dbt image. To be decided in T7.1. |
+| dbt execution | **`BashOperator` running `/opt/dbt-venv/bin/dbt` inside the Airflow containers (D17).** The project is at `/opt/dbt` in the image, with its packages installed at build time; each run writes its artifacts to a per-run target path, never into the image's project folder. |
 
-Portability rule: only core operators (Bash, Python and possibly Docker). **No Composer- or MWAA-specific hooks.**
+Portability rule: only core operators (Bash and Python). **No Composer- or MWAA-specific hooks, and no `DockerOperator`** (D17).
 
 ### 8. DAGs
 | DAG | Schedule | Tasks |
 |---|---|---|
-| `clickstream_transform` | Hourly (can be changed) | `check_raw_freshness` → `dbt_build` (staging → intermediate → marts, with tests) → `publish_run_summary` |
+| `clickstream_transform` | `TRANSFORM_SCHEDULE` (default `@hourly`) | `check_raw_freshness` → `dbt_build` (staging → intermediate → marts, with tests) → `publish_run_summary` |
 | `clickstream_maintenance` (optional) | Daily | Check DLQ volume, check raw retention and vacuum |
 
-Freshness rule: `check_raw_freshness` fails if there have been no new raw rows for longer than `RAW_FRESHNESS_MINUTES` (default 30) while the bot is expected to be running.
+Freshness rule: `check_raw_freshness` runs `dbt source freshness` on `raw.clickstream_events` (`loaded_at_field: ingested_at`) and fails if there have been no new raw rows for longer than `RAW_FRESHNESS_MINUTES` (default 30). When it fails, `dbt_build` doesn't run. Using dbt's own freshness check keeps the rule identical on BigQuery.
 
 ### 9. GCP orchestration (Phase 8, to be decided)
 Cloud Composer (managed, costly) or self-hosted Airflow (Cloud Run or a VM). The DAG code must stay the same whichever is chosen.
@@ -105,6 +107,8 @@ Cloud Composer (managed, costly) or self-hosted Airflow (Cloud Run or a VM). The
 | `WAREHOUSE_BACKEND`, `WAREHOUSE_DSN` / `WAREHOUSE_DATASET` | Sink |
 | `INGEST_BATCH_SIZE`, `INGEST_FLUSH_SECONDS`, `INGEST_GROUP_ID` | Consumer tuning |
 | `RAW_FRESHNESS_MINUTES` | DAG freshness check |
+| `TRANSFORM_SCHEDULE` | Cron or preset for `clickstream_transform` (default `@hourly`) |
+| `AIRFLOW_API_URL`, `AIRFLOW_ADMIN_PASSWORD` | Host access to the Airflow REST API (contract keys, spec 01 §4.2) |
 
 ## 11. Acceptance criteria
 1. With the bot running, raw rows increase continuously, and consumer lag stays under 1 batch interval in steady state.
@@ -114,5 +118,16 @@ Cloud Composer (managed, costly) or self-hosted Airflow (Cloud Run or a VM). The
 5. End to end (T7.3): events from bot actions show up in the marts within one DAG cycle.
 
 ## 12. Open items
-- `BashOperator` or `DockerOperator` for dbt.
 - The GCP ingestion option (A or B) and the GCP orchestration host.
+
+`BashOperator` or `DockerOperator` for dbt is settled by D17.
+
+## 13. Features
+| Feature | Tasks | Doc |
+|---|---|---|
+| F05.1 `ingest-consumer` | T5.1, T5.2, T5.4 | `features/05-ingestion-orchestration/feature-ingest-consumer` |
+| F05.2 `ingest-deploy` | T5.3 | `features/05-ingestion-orchestration/feature-ingest-deploy` |
+| F05.3 `airflow-local` | T7.1 | `features/05-ingestion-orchestration/feature-airflow-local` |
+| F05.4 `airflow-transform-dag` | T7.2 | `features/05-ingestion-orchestration/feature-airflow-transform-dag` |
+| F05.5 `local-e2e` | T7.3 | `features/05-ingestion-orchestration/feature-local-e2e` |
+| F05.6 GCP ingestion | T8.4 | Phase 8, not written yet |

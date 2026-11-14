@@ -34,12 +34,13 @@
   - `airflow`: owner of `airflow`
   - Passwords come from `random_password`.
 - **Contract:**
-  - Outputs every key in spec 01 §4.2 (non-local keys are empty), including the per-role DSNs: `WAREHOUSE_DSN` (`ingest_writer`), `DBT_WAREHOUSE_DSN` (`dbt_runner`), `STORE_DB_DSN` (`store_app`) and `AIRFLOW_DB_DSN` (`airflow`).
+  - Outputs every key in spec 01 §4.2 (non-local keys are empty), including the per-role DSNs: `WAREHOUSE_DSN` (`ingest_writer`), `DBT_WAREHOUSE_DSN` (`dbt_runner`), `STORE_DB_DSN` (`store_app`) and `AIRFLOW_DB_DSN` (`airflow`), plus `AIRFLOW_API_URL` and `AIRFLOW_ADMIN_PASSWORD` (added by `airflow-local`).
+  - Outputs `service_credentials` (sensitive) for the `30-services` stack (D16, added by `airflow-local`).
   - `local_file` writes `.env.local` at the repo root with the host-facing values (file permission `0600`, gitignored).
 - **Makefile:**
-  - `make up` applies `10-platform` then `20-resources` (which writes `.env.local`).
+  - `make up` applies `10-platform`, then `20-resources` (which writes `.env.local`), then `30-services` (D16).
   - `make env` regenerates `.env.local` with a targeted apply of the `local_file` resource.
-  - `make down` destroys `20-resources` then `10-platform`. It is always a full reset: dropping the databases removes the data, so `keep_data` only applies when `10-platform` is destroyed on its own.
+  - `make down` destroys `30-services`, `20-resources`, then `10-platform`. It is always a full reset: dropping the databases removes the data, so `keep_data` only applies when `10-platform` is destroyed on its own.
   - `make validate` also validates `modules/aws`.
   - Terraform `plan`/`apply`/`destroy` in the Makefile are retried once: the Mongey/kafka provider intermittently fails with `kafka: broker not connected` (a race in its sarama client) while the broker is healthy. The runs are idempotent, so the retry is safe.
 - **`modules/aws`:** declares the contract variables and outputs, with no resources.

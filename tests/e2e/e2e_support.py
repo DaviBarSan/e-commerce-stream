@@ -12,6 +12,9 @@ TF_VAR_FROM_VERSIONS = {
     "KAFKA_IMAGE": "kafka_image",
     "KAFKA_UI_IMAGE": "kafka_ui_image",
     "POSTGRES_IMAGE": "postgres_image",
+    "AIRFLOW_IMAGE": "airflow_image",
+    "DBT_CORE_VERSION": "dbt_core_version",
+    "DBT_POSTGRES_VERSION": "dbt_postgres_version",
 }
 
 
@@ -108,12 +111,14 @@ def pg_connect(platform_outputs, dbname="postgres"):
 
 
 LOCAL_RESOURCES = Stack("local/20-resources")
+LOCAL_SERVICES = Stack("local/30-services")
+LOCAL_STACKS = (LOCAL_PLATFORM, LOCAL_RESOURCES, LOCAL_SERVICES)
 
 # Environment contract keys (spec 01 §4.2), written to .env.<env> by every env.
 CONTRACT_KEYS = [
     "STREAMING_BACKEND", "KAFKA_BOOTSTRAP_SERVERS", "GCP_PROJECT_ID", "EVENTS_TOPIC", "EVENTS_DLQ_TOPIC",
     "WAREHOUSE_BACKEND", "WAREHOUSE_DSN", "WAREHOUSE_DATASET", "WAREHOUSE_RAW_SCHEMA",
-    "STORE_DB_DSN", "DBT_WAREHOUSE_DSN", "AIRFLOW_DB_DSN",
+    "STORE_DB_DSN", "DBT_WAREHOUSE_DSN", "AIRFLOW_DB_DSN", "AIRFLOW_API_URL", "AIRFLOW_ADMIN_PASSWORD",
 ]
 
 
@@ -547,3 +552,43 @@ class ReflexServer:
             self.proc.terminate()
         self.proc.wait(30)
         self._log.close()
+
+
+# --- Airflow (airflow-local and later orchestration features) --------------------------------
+
+class AirflowApi:
+    """The Airflow REST API from the host, as the contract's admin user (simple auth manager)."""
+
+    def __init__(self, env):
+        self.url = env["AIRFLOW_API_URL"]
+        self.password = env["AIRFLOW_ADMIN_PASSWORD"]
+        self._token = None
+
+    def token(self):
+        import httpx
+
+        resp = httpx.post(f"{self.url}/auth/token", json={"username": "admin", "password": self.password}, timeout=30)
+        assert resp.status_code == 201, f"token request failed: {resp.status_code} {resp.text}"
+        return resp.json()["access_token"]
+
+    def request(self, method, path, **kwargs):
+        """Authenticated request against /api/v2; returns the httpx response."""
+        import httpx
+
+        self._token = self._token or self.token()
+        headers = {"Authorization": f"Bearer {self._token}"}
+        return httpx.request(method, f"{self.url}/api/v2{path}", headers=headers, timeout=30, **kwargs)
+
+    def health(self):
+        """/api/v2/monitor/health (no auth needed), or None while the API server isn't answering."""
+        import httpx
+
+        try:
+            return httpx.get(f"{self.url}/api/v2/monitor/health", timeout=10).json()
+        except (httpx.TransportError, ValueError):
+            return None
+
+
+def airflow_container(component):
+    """Docker name of an Airflow container: api-server, scheduler, dag-processor or init."""
+    return f"{project_prefix()}airflow-{component}"

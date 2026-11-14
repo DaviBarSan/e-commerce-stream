@@ -38,3 +38,8 @@ output "postgres_admin_password" {
   value       = module.postgres.admin_password
   sensitive   = true
 }
+
+output "airflow_host_port" {
+  description = "Host port for the Airflow API server; read by 20-resources (contract) and 30-services (container)."
+  value       = var.airflow_host_port
+}

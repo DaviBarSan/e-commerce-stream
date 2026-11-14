@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`); T6.4–T6.5 done (`dbt-sessions-funnel`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`); T6.4–T6.5 done (`dbt-sessions-funnel`); T7.1 done (`airflow-local`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -31,6 +31,8 @@ A cloud-agnostic clickstream analytics pipeline. An e-commerce store and traffic
 | D13 | **Deterministic `event_id`:** a UUIDv5 of the request's idempotency key plus the `event_type`. The frontend sends an `Idempotency-Key` header with each user action, and the backend derives `event_id` from it, so a retried request yields the same `event_id` and is dropped by the raw table's primary key (and by `stg_clickstream`). Closes the frontend duplicate-events item (spec 02, spec 04). |
 | D14 | **Marts follow Kimball dimensional modeling, organised by a bus matrix (spec 06 §5.4).** Conformed dimensions `dim_date`, `dim_time_of_day`, `dim_users`, `dim_sessions`, `dim_products`, `dim_page`, `dim_event_type`. One fact per business process: `fct_events` (transaction, factless), `fct_sessions` (accumulating snapshot: the funnel), `fct_carts` (accumulating snapshot: the cart lifecycle) and `fct_order_lines` (transaction: sales). Rollups `agg_funnel_daily` and `fct_orders`. Natural keys and SCD Type 1, plus a hashed `session_key`. Money is additive only per currency, and rates are computed at query time. |
 | D15 | **The store database is the system of record; state-change events go through a transactional outbox.** Events that describe a database change (`add_to_cart`, `remove_from_cart`, `purchase`) are written to `store.outbox_events` in the same transaction as the change, and a relay publishes them at least once, so a broker outage delays them instead of losing them. Browsing events (`page_view`, `search`, `product_view`, `checkout_start`) keep the direct asynchronous publish: they have no database counterpart to diverge from, and routing them through the outbox would turn read traffic into writes. The warehouse's only input is the event stream (no CDC). |
+| D16 | **Local service containers live in a third stack, `envs/local/30-services`**, applied after `20-resources` and destroyed before it. It holds the store app, the ingest consumer, the bot and Airflow. It reads the network from `10-platform` and the per-role credentials from `20-resources` through `terraform_remote_state`, and passes in-network endpoints (`kafka:19092`, `postgres:5432`) straight to the containers. Services can be rebuilt without touching Kafka or Postgres, and there's no dependency cycle between the containers and the roles they need. `.env.local` is still written by `20-resources`. Closes the F02.3 placement item (spec 01). |
+| D17 | **Airflow runs dbt with a `BashOperator`, using a dbt installed in its own virtualenv inside the Airflow image** (`/opt/dbt-venv`, pinned to `DBT_CORE_VERSION` / `DBT_POSTGRES_VERSION`). The dbt project and its packages (`dbt deps`) are baked into the image at build time, and a change under `dbt/` rebuilds it. The separate virtualenv keeps dbt's dependencies apart from Airflow's; no Docker socket is mounted, and the DAG code stays the same on Composer or self-hosted Airflow (spec 05 §9). Closes the T7.1 decision (spec 05). |
 
 ## 3. Environments
 
@@ -115,7 +117,7 @@ How to read the tables:
 | T3.3 ✅ | Backend telemetry hooks: every user-facing action emits an event through `EventProducer` | 02, 04 | T3.2, T2.3 | Each endpoint emits the expected `event_type` to Kafka |
 | T3.4 ✅ | Frontend screens: home, search, product detail, cart and checkout | 02 | T3.2 | You can complete a purchase flow manually in the browser |
 | T3.5 | Dockerfiles for the backend and frontend | 02 | T3.3, T3.4 | The images build |
-| T3.6 | `modules/local/app`: Terraform runs the backend and frontend containers | 01, 02 | T3.5 | After `make up`, the store opens on `:3000` and the API on `:8000` |
+| T3.6 | `modules/local/app` in `30-services` (D16): Terraform runs the backend and frontend containers | 01, 02 | T3.5, T7.1 (creates `30-services`) | After `make up`, the store opens on `:3000` and the API on `:8000` |
 | T3.7 | Transactional outbox for state-change events, plus the relay (D15) | 02, 04 | T3.3 | With the broker down, cart and purchase requests still succeed, and their events reach the raw table exactly once after it comes back |
 
 ### Phase 4: Traffic bots
@@ -132,7 +134,7 @@ How to read the tables:
 |---|---|---|---|---|
 | T5.1 ✅ | Raw staging table per D11 | 05 | T2.1 | The table exists with the D11 columns, and D11 is reflected in spec 05 |
 | T5.2 ✅ | Streaming consumer: Kafka to Postgres micro-batches, committing offsets only after a successful write | 05 | T5.1, T2.3 | Events show up in raw staging, with no data loss after a restart |
-| T5.3 | Consumer Docker image and `modules/local/consumer` | 01, 05 | T5.2 | The consumer runs under `make up` |
+| T5.3 | Consumer Docker image and `modules/local/consumer` | 01, 05 | T5.2, T7.1 (creates `30-services`) | The consumer runs under `make up` |
 | T5.4 ✅ | Dead-letter handling for invalid events | 05, 04 | T5.2 | Invalid events go to the DLQ topic, and the pipeline keeps running |
 
 ### Phase 6: Transformation
@@ -150,8 +152,8 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T7.1 | `modules/local/airflow`: Airflow containers (LocalExecutor, metadata in the `airflow` database) | 01, 05 | T1.5 | The Airflow UI opens on `:8080` |
-| T7.2 | DAG `clickstream_transform`: freshness check, `dbt build`, then `dbt test` | 05, 06 | T7.1, T6.6 | The DAG runs green on schedule |
+| T7.1 ✅ | `envs/local/30-services` (D16) and `modules/local/airflow`: Airflow containers (LocalExecutor, metadata in the `airflow` database, dbt in the image per D17) | 01, 05 | T1.5 | The Airflow UI opens on `:8080` |
+| T7.2 | DAG `clickstream_transform`: freshness check, then `dbt build` (models and their tests), then a run summary | 05, 06 | T7.1, T6.6 | The DAG runs green on schedule |
 | T7.3 | Local end-to-end test | all | T7.2, T4.3, T5.3 | Bot traffic shows up in the marts within one DAG cycle |
 
 ### Phase 8: GCP rollout (starts after T7.3)

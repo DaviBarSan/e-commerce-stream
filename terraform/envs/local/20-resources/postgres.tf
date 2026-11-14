@@ -64,3 +64,9 @@ resource "postgresql_default_privileges" "dbt_raw_select" {
   object_type = "table"
   privileges  = ["SELECT"]
 }
+
+# Airflow `admin` user (simple auth manager, 30-services). Alphanumeric like the role passwords.
+resource "random_password" "airflow_admin" {
+  length  = 32
+  special = false
+}

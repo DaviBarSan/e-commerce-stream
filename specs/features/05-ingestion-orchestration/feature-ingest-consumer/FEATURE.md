@@ -22,7 +22,7 @@ Move every event from `clickstream.events.v1` into the raw table `warehouse.raw.
   - The pluggable sink interface with the Postgres sink
   - Structured logs
 - **Out:**
-  - The Docker image and Terraform module (`ingest-deploy`, T5.3)
+  - The Docker image and Terraform module (F05.2 `ingest-deploy`, T5.3)
   - The BigQuery sink and the GCP ingestion path (Phase 8)
   - dbt models (spec 06)
 

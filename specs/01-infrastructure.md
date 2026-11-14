@@ -17,10 +17,10 @@ terraform/
       network/       docker network
       kafka/         apache/kafka (KRaft) + kafka-ui
       postgres/      postgres + volume
-      app/           backend + frontend containers      (Phase 3)
-      bot/           traffic bot container               (Phase 4)
-      consumer/      ingestion consumer container        (Phase 5)
-      airflow/       airflow webserver/scheduler         (Phase 7)
+      app/           backend + frontend containers      (Phase 3, in 30-services)
+      bot/           traffic bot container               (Phase 4, in 30-services)
+      consumer/      ingestion consumer container        (Phase 5, in 30-services)
+      airflow/       airflow api-server/scheduler/dag-processor (Phase 7, in 30-services)
     gcp/
       pubsub/  bigquery/  gcs/  artifact_registry/  iam/  cloud_run/   (Phase 8)
     aws/
@@ -29,6 +29,7 @@ terraform/
     local/
       10-platform/   containers, network, volumes         (local state)
       20-resources/  kafka topics, pg databases/schemas/roles (local state)
+      30-services/   service containers and their images (local state, D16)
     gcp/             single stack                         (GCS backend)
     aws/             placeholder
 scripts/
@@ -37,12 +38,13 @@ Makefile
 versions.env         pinned tool/image versions
 ```
 
-### Why local has two stacks
+### Why local has three stacks
 The `Mongey/kafka` and `cyrilgdn/postgresql` providers connect to live servers when Terraform configures them. Those servers are containers that the same Terraform run would create, and a provider can't reliably be configured against a resource created in the same apply. So:
-- **`10-platform`** creates the containers, network and volumes, and outputs their host endpoints.
-- **`20-resources`** reads those outputs through a `terraform_remote_state` data source on the local backend, then creates the topics, databases, schemas and roles.
+- **`10-platform`** creates the platform containers (Kafka, Kafka UI, Postgres), network and volumes, and outputs their host endpoints.
+- **`20-resources`** reads those outputs through a `terraform_remote_state` data source on the local backend, then creates the topics, databases, schemas and roles. It writes `.env.local`.
+- **`30-services`** (D16) builds the service images and runs the service containers: the store app, the ingest consumer, the bot and Airflow. It reads the network name from `10-platform` and the per-role credentials (`service_credentials`, sensitive) from `20-resources`, both through `terraform_remote_state`. It passes in-network endpoints (`kafka:19092`, `postgres:5432`) to the containers directly. Services need the roles and topics to exist first, so they can't live in `10-platform` without a dependency cycle.
 
-`make up ENV=local` applies both in order, and `make down` destroys them in reverse order.
+`make up ENV=local` applies the three in order, and `make down` destroys them in reverse order. `make env` still targets `20-resources`.
 
 ## 4. Environment contract
 
@@ -69,6 +71,8 @@ The `Mongey/kafka` and `cyrilgdn/postgresql` providers connect to live servers w
 | `STORE_DB_DSN` | Postgres DSN for `store` (role `store_app`) | Cloud SQL (to be decided) |
 | `DBT_WAREHOUSE_DSN` | Postgres DSN for `warehouse` (role `dbt_runner`) | empty (dbt uses its BigQuery profile) |
 | `AIRFLOW_DB_DSN` | Postgres DSN for `airflow` (role `airflow`) | to be decided with GCP orchestration |
+| `AIRFLOW_API_URL` | `http://127.0.0.1:8080` (from the `airflow_host_port` input of `10-platform`) | to be decided with GCP orchestration |
+| `AIRFLOW_ADMIN_PASSWORD` | Airflow `admin` user password (`random_password` in `20-resources`) | to be decided with GCP orchestration |
 
 `WAREHOUSE_DSN` is the ingestion sink's DSN (role `ingest_writer`). Each role gets its own key, so every service only receives the credentials it needs. A key that doesn't apply to an environment is still written, with an empty value.
 
@@ -133,9 +137,9 @@ Free-tier guardrails:
 | `make doctor` | Checks the Terraform (exact), Docker, `make`, `uv` and Python (minimum) versions against `versions.env` |
 | `make init ENV=local` | Runs `terraform init` on every stack for that environment |
 | `make plan ENV=local` | Runs `plan` on every stack |
-| `make up ENV=local` | Applies `10-platform` then `20-resources`, then runs `make env` |
+| `make up ENV=local` | Applies `10-platform`, `20-resources` (which writes `.env.local`) and `30-services` |
 | `make down ENV=local` | Destroys in reverse order |
-| `make env ENV=local` | Writes `.env.local` from the outputs |
+| `make env ENV=local` | Writes `.env.local` from the `20-resources` outputs |
 | `make smoke ENV=local` | Runs `scripts/smoke` |
 | `make fmt` / `make validate` | Runs `terraform fmt -recursive` / `validate` on every stack |
 | `make e2e FEATURE=<id>` | Runs a feature's two E2E flows: `uv run pytest tests/e2e/<id>` |
