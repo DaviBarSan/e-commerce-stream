@@ -10,6 +10,8 @@ export TF_VAR_kafka_image    := $(KAFKA_IMAGE)
 export TF_VAR_kafka_ui_image := $(KAFKA_UI_IMAGE)
 export TF_VAR_postgres_image := $(POSTGRES_IMAGE)
 export TF_VAR_airflow_image  := $(AIRFLOW_IMAGE)
+export TF_VAR_python_image   := $(PYTHON_IMAGE)
+export TF_VAR_uv_image       := $(UV_IMAGE)
 export TF_VAR_dbt_core_version     := $(DBT_CORE_VERSION)
 export TF_VAR_dbt_postgres_version := $(DBT_POSTGRES_VERSION)
 

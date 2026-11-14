@@ -30,3 +30,13 @@ variable "dbt_postgres_version" {
   description = "versions.env DBT_POSTGRES_VERSION"
   type        = string
 }
+
+variable "python_image" {
+  description = "versions.env PYTHON_IMAGE"
+  type        = string
+}
+
+variable "uv_image" {
+  description = "versions.env UV_IMAGE"
+  type        = string
+}
