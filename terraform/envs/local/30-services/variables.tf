@@ -47,3 +47,15 @@ variable "consumer_replicas" {
   type        = number
   default     = 1
 }
+
+variable "transform_schedule" {
+  description = "Schedule of the clickstream_transform DAG: cron or preset, or `none` for manual runs only."
+  type        = string
+  default     = "@hourly"
+}
+
+variable "raw_freshness_minutes" {
+  description = "Minutes without new raw rows after which the DAG's freshness check fails."
+  type        = number
+  default     = 30
+}

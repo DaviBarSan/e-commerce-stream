@@ -9,5 +9,4 @@ sources:
         loaded_at_field: ingested_at
         config:
           freshness:
-            warn_after: {count: 30, period: minute}
-            error_after: {count: 2, period: hour}
+            error_after: {count: "{{ env_var('RAW_FRESHNESS_MINUTES', '30') | as_number }}", period: minute}

@@ -37,10 +37,16 @@ locals {
     WAREHOUSE_RAW_SCHEMA = var.warehouse_raw_schema
     DBT_TARGET_PATH      = "/tmp/dbt/target"
     DBT_LOG_PATH         = "/tmp/dbt/logs"
+
+    # clickstream_transform (F05.4): schedule, freshness threshold, and where each run's dbt artifacts go.
+    TRANSFORM_SCHEDULE    = var.transform_schedule
+    RAW_FRESHNESS_MINUTES = tostring(var.raw_freshness_minutes)
+    DBT_RUNS_DIR          = "/opt/airflow/dbt-runs"
   }
   env_list = [for k, v in local.env : "${k}=${v}"]
 
   dags_dir = "${var.repo_root}/dags"
+  runs_dir = "${var.repo_root}/airflow-runs"
 }
 
 # Shared secrets: every Airflow component must see the same values.
@@ -165,6 +171,13 @@ resource "docker_container" "scheduler" {
     source    = local.dags_dir
     target    = "/opt/airflow/dags"
     read_only = true
+  }
+
+  # LocalExecutor runs the tasks here, so each run's dbt artifacts land in the host's airflow-runs/ (F05.4).
+  mounts {
+    type   = "bind"
+    source = local.runs_dir
+    target = "/opt/airflow/dbt-runs"
   }
 
   healthcheck {

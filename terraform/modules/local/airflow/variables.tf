@@ -70,3 +70,15 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "transform_schedule" {
+  description = "Schedule of clickstream_transform: a cron expression or preset, or `none` for manual runs only."
+  type        = string
+  default     = "@hourly"
+}
+
+variable "raw_freshness_minutes" {
+  description = "Minutes without new raw rows after which check_raw_freshness fails."
+  type        = number
+  default     = 30
+}

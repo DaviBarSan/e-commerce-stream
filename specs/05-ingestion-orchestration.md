@@ -92,7 +92,7 @@ Portability rule: only core operators (Bash and Python). **No Composer- or MWAA-
 ### 8. DAGs
 | DAG | Schedule | Tasks |
 |---|---|---|
-| `clickstream_transform` | `TRANSFORM_SCHEDULE` (default `@hourly`) | `check_raw_freshness` → `dbt_build` (staging → intermediate → marts, with tests) → `publish_run_summary` |
+| `clickstream_transform` | `TRANSFORM_SCHEDULE` (default `@hourly`; `none` for manual only) | `check_raw_freshness` → `dbt_seed` → `dbt_staging` → `dbt_intermediate` → `dbt_marts` (one `dbt build` per layer, with its tests) → `publish_run_summary`. Each run's dbt artifacts land in the host's `airflow-runs/` (F05.4). |
 | `clickstream_maintenance` (optional) | Daily | Check DLQ volume, check raw retention and vacuum |
 
 Freshness rule: `check_raw_freshness` runs `dbt source freshness` on `raw.clickstream_events` (`loaded_at_field: ingested_at`) and fails if there have been no new raw rows for longer than `RAW_FRESHNESS_MINUTES` (default 30). When it fails, `dbt_build` doesn't run. Using dbt's own freshness check keeps the rule identical on BigQuery.
