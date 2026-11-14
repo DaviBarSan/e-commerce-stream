@@ -23,7 +23,7 @@ Phases 0–2 are complete. Phase 3 has the API and frontend done; Phases 5 and 6
 | F06.1 dbt-foundations | T6.1–T6.3 | Done | n/a |
 | F06.2 dbt-sessions-funnel | T6.4, T6.5 | Done (merged, #10) | n/a |
 | F05.3 airflow-local | T7.1 | Done (merged, #11) | n/a |
-| F02.4 store-outbox | T3.7 | Done on `feature/store-outbox` (5/5), PR pending | n/a |
+| F02.4 store-outbox | T3.7 | Done on `feature/store-outbox` (5/5), PR #12 open | n/a |
 | F06.3 dbt-commerce-marts | T6.6 | Not started | yes, once F02.4 merges |
 | F05.4 airflow-transform-dag | T7.2 | Not started | no: F06.3 |
 | F02.3 store-deploy | T3.5, T3.6 | Not started | yes |
@@ -48,7 +48,7 @@ Phases 0–2 are complete. Phase 3 has the API and frontend done; Phases 5 and 6
    - **D16:** service containers live in a new `envs/local/30-services` stack (spec 01 §3; F02.3's open item closed).
    - **D17:** Airflow runs dbt with a `BashOperator`, using dbt in its own virtualenv inside the Airflow image, with the project baked in (spec 05 §7).
 3. ~~**F05.3 airflow-local (T7.1).**~~ Done 2026-11-14 (#11). Airflow `3.3.2-python3.12`, `30-services` stack, dbt `1.12.5` in `/opt/dbt-venv`.
-4. **(Current)** **F02.4 store-outbox (T3.7).** Implemented and green on `feature/store-outbox`; PR next. Gates the commerce marts.
+4. **(Current)** **F02.4 store-outbox (T3.7).** Implemented and green on `feature/store-outbox`; PR #12 open. Gates the commerce marts.
 5. **F06.3 dbt-commerce-marts (T6.6).**
 6. **F05.4 airflow-transform-dag (T7.2).** `dbt source freshness`, `dbt build` (with tests), run summary; needs F05.3 and F06.3.
 7. **F02.3 store-deploy (T3.5, T3.6)**, in `30-services`.
@@ -77,3 +77,4 @@ Nothing blocks local work. Open `PLAN.md` §8 entries gate Phase 8 and later onl
 | 2026-11-14 | PR #11 opened for `feature/airflow-local` (step 2 docs + F05.3). |
 | 2026-11-14 | PR #11 merged (`cdf76c2`); `feature/airflow-local` deleted locally and on GitHub. Step 4 (F02.4 store-outbox) started on `feature/store-outbox`. |
 | 2026-11-14 | Step 4 (F02.4 store-outbox) implemented: `store-outbox` 5/5; regressions telemetry-producer 11/11, store-api 7/7, store-frontend 6/6, ingest-consumer 6/6. Spec 04 §6 now states the D15 ordering consequence (order per delivery path; consumers order by `event_ts`), and the store-api flow checks order per path. T3.7 ticked. PR pending. |
+| 2026-11-14 | PR #12 opened for `feature/store-outbox` (F02.4). |
