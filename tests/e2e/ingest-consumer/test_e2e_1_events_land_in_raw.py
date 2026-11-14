@@ -78,5 +78,7 @@ def test_flushes_are_logged_and_the_consumer_stops_cleanly(ingested):
     assert ingested["flushes"], "no flush log lines"
     for record in ingested["flushes"]:
         assert {"batch_size", "inserted", "duplicates", "dlq_count", "write_ms", "lag"} <= record.keys()
-    assert sum(r["inserted"] for r in ingested["flushes"]) >= len(ingested["events"])
+    # The ingest-consumer container (ingest-deploy) writes the same events too, so some may already be in raw
+    # when this consumer flushes: every event is processed, as an insert or a duplicate.
+    assert sum(r["inserted"] + r["duplicates"] for r in ingested["flushes"]) >= len(ingested["events"])
     assert ingested["exit_code"] == 0

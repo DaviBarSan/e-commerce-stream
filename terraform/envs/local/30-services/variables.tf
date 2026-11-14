@@ -40,3 +40,10 @@ variable "uv_image" {
   description = "versions.env UV_IMAGE"
   type        = string
 }
+
+# --- Service settings ---
+variable "consumer_replicas" {
+  description = "Ingest consumer containers (1 to the events topic's partition count)."
+  type        = number
+  default     = 1
+}

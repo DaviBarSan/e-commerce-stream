@@ -41,3 +41,20 @@ module "app" {
   store_db        = local.resources.roles["store_app"]
   labels          = local.labels
 }
+
+module "consumer" {
+  source               = "../../../modules/local/consumer"
+  project_name         = var.project_name
+  network_name         = local.platform.network_name
+  repo_root            = local.repo_root
+  python_image         = var.python_image
+  uv_image             = var.uv_image
+  replicas             = var.consumer_replicas
+  events_partitions    = local.resources.events_partitions
+  kafka_bootstrap      = local.platform.kafka_bootstrap_internal
+  events_topic         = local.resources.events_topic
+  events_dlq_topic     = local.resources.events_dlq_topic
+  warehouse_db         = local.resources.roles["ingest_writer"]
+  warehouse_raw_schema = local.resources.warehouse_raw_schema
+  labels               = local.labels
+}

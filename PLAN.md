@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T3.5–T3.6 done (`store-deploy`); T3.7 done (`store-outbox`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`); T6.4–T6.6 done (`dbt-sessions-funnel`, `dbt-commerce-marts`); T7.1 done (`airflow-local`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T3.5–T3.6 done (`store-deploy`); T3.7 done (`store-outbox`); T5.1–T5.4 done (`ingest-consumer`, `ingest-deploy`); T6.1–T6.3 done (`dbt-foundations`); T6.4–T6.6 done (`dbt-sessions-funnel`, `dbt-commerce-marts`); T7.1 done (`airflow-local`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -134,7 +134,7 @@ How to read the tables:
 |---|---|---|---|---|
 | T5.1 ✅ | Raw staging table per D11 | 05 | T2.1 | The table exists with the D11 columns, and D11 is reflected in spec 05 |
 | T5.2 ✅ | Streaming consumer: Kafka to Postgres micro-batches, committing offsets only after a successful write | 05 | T5.1, T2.3 | Events show up in raw staging, with no data loss after a restart |
-| T5.3 | Consumer Docker image and `modules/local/consumer` | 01, 05 | T5.2, T7.1 (creates `30-services`) | The consumer runs under `make up` |
+| T5.3 ✅ | Consumer Docker image and `modules/local/consumer` | 01, 05 | T5.2, T7.1 (creates `30-services`) | The consumer runs under `make up` |
 | T5.4 ✅ | Dead-letter handling for invalid events | 05, 04 | T5.2 | Invalid events go to the DLQ topic, and the pipeline keeps running |
 
 ### Phase 6: Transformation
