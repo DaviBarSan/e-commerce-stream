@@ -10,7 +10,7 @@ Package the bot as an image and run it on demand, managed by Terraform, with `ma
 ## 2. Scope
 - **In:**
   - `services/traffic_bot/Dockerfile`
-  - `modules/local/bot`
+  - `modules/local/bot`, wired into `envs/local/30-services` (D16)
   - The `make bot` and `make bot-stop` targets, which take the profile, users, duration and seed as overrides
 - **Out:** the Cloud Run Job (Phase 8).
 
@@ -19,7 +19,7 @@ Package the bot as an image and run it on demand, managed by Terraform, with `ma
 - **`modules/local/bot`:**
   - A container on the platform network targeting `http://store-api:8000`.
   - Controlled by a `bot_enabled` variable, which defaults to `false` so `make up` doesn't start traffic.
-- **`make bot`:** runs the `apply` with `bot_enabled=true` and the given variables, then follows the container logs until it exits.
+- **`make bot`:** runs the `30-services` `apply` with `bot_enabled=true` and the given variables, then follows the container logs until it exits.
 
 ## 4. Interfaces
 - **Consumes:** the store API container (F02.3).

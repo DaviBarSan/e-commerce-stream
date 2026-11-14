@@ -73,7 +73,7 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
 
 ### Infrastructure (Terraform first, D4)
 - All infrastructure, local included, is Terraform. **No hand-written docker-compose, and no creating resources by hand.**
-- Modules go in `terraform/modules/<env>/<component>`, and root stacks in `terraform/envs/<env>/`. Local uses two stacks, `10-platform` then `20-resources` (spec 01 §3).
+- Modules go in `terraform/modules/<env>/<component>`, and root stacks in `terraform/envs/<env>/`. Local uses three stacks, `10-platform`, `20-resources` then `30-services` (spec 01 §3, D16).
 - Every env stack uses the **environment contract** (spec 01 §4). A new setting means a new contract key, added to every env.
 - Pin provider and image versions. Run `terraform fmt` and `validate` before finishing a feature.
 - A feature that adds a service also adds its Terraform module (Principle 7).

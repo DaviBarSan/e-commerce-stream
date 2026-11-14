@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| Not started | [02](../../../02-store-app.md) | T3.5, T3.6 | F02.1, F02.2 | 3 |
+| Not started | [02](../../../02-store-app.md) | T3.5, T3.6 | F02.1, F02.2, airflow-local (creates `30-services`) | 3 |
 
 ## 1. Goal
 Package the store API and the Reflex frontend as images, and run them as part of `make up` with Terraform (`modules/local/app`).
@@ -11,7 +11,7 @@ Package the store API and the Reflex frontend as images, and run them as part of
 - **In:**
   - The Dockerfiles
   - `modules/local/app` (image build and containers)
-  - Wiring the module into `envs/local/10-platform`
+  - Wiring the module into `envs/local/30-services` (D16)
   - A seed step that runs when the environment comes up
 - **Out:** the Cloud Run deployment (F01.4, Phase 8).
 
@@ -22,13 +22,13 @@ Package the store API and the Reflex frontend as images, and run them as part of
   - Containers: `store-api` on `:8000` and `store-web` on `:3000` / `:8001`, both on the platform network.
 - **In-network settings, passed straight to the containers:**
   - `KAFKA_BOOTSTRAP_SERVERS=kafka:19092`
-  - The Postgres host is `postgres`
+  - `STORE_DB_DSN` in-network (`postgres:5432`, role `store_app`), built from the `service_credentials` output of `20-resources`
   - The frontend's `BACKEND_URL` is `http://store-api:8000`
 - **Seed:** a one-shot `store-seed` container (idempotent), which runs before `store-api` is reported healthy.
 - **Healthchecks:** `/health` for the API, and the root page for the frontend.
 
 ## 4. Interfaces
-- **Consumes:** the `10-platform` network and endpoints, and the `20-resources` credentials. The app module goes in `10-platform` and reads its credentials from `20-resources` outputs; if that creates a dependency cycle, move the app into a `30-services` stack and record it in spec 01.
+- **Consumes:** the `10-platform` network, the `service_credentials` output of `20-resources`, and the `30-services` stack (D16, created by `airflow-local`).
 - **Produces:** the running store on `:3000` and `:8000`.
 
 ## 5. E2E test flows
@@ -45,4 +45,4 @@ Package the store API and the Reflex frontend as images, and run them as part of
 Both flows pass through `make e2e FEATURE=store-deploy`.
 
 ## 7. Open items
-- Where the service containers live: `10-platform`, or a separate `30-services` stack. Decide during implementation and record the choice in spec 01.
+None. The service containers live in `30-services` (D16, spec 01 §3).
