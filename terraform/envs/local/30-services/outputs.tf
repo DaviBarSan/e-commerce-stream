@@ -12,3 +12,18 @@ output "airflow_containers" {
   description = "Names of the long-running Airflow containers."
   value       = module.airflow.containers
 }
+
+output "store_api_url" {
+  description = "Store API on the host."
+  value       = module.app.api_url
+}
+
+output "store_web_url" {
+  description = "Storefront on the host."
+  value       = module.app.web_url
+}
+
+output "store_containers" {
+  description = "Names of the long-running store containers."
+  value       = module.app.containers
+}

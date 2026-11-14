@@ -13,6 +13,8 @@ TF_VAR_FROM_VERSIONS = {
     "KAFKA_UI_IMAGE": "kafka_ui_image",
     "POSTGRES_IMAGE": "postgres_image",
     "AIRFLOW_IMAGE": "airflow_image",
+    "PYTHON_IMAGE": "python_image",
+    "UV_IMAGE": "uv_image",
     "DBT_CORE_VERSION": "dbt_core_version",
     "DBT_POSTGRES_VERSION": "dbt_postgres_version",
 }
@@ -236,7 +238,8 @@ def wait_container_healthy(container, timeout=180):
 class ApiServer:
     """Runs `uvicorn store_backend.main:app` on the host with the contract env, logging to a file."""
 
-    def __init__(self, env, log_path, port=8000):
+    # Host port for test-run APIs: the store-api container owns :8000 under `make up` (store-deploy).
+    def __init__(self, env, log_path, port=18000):
         self.env = {**os.environ, **env}
         self.log_path = Path(log_path)
         self.port = port
@@ -513,7 +516,8 @@ def session_events(bootstrap, topic, start_offsets, session_id, until=None, time
 class ReflexServer:
     """Runs the Reflex storefront in production mode (UI and Reflex backend on one port)."""
 
-    def __init__(self, env, log_path, backend_url, port=3000):
+    # Host port for test-run storefronts: the store-web container owns :3000 under `make up` (store-deploy).
+    def __init__(self, env, log_path, backend_url, port=13000):
         self.env = {**os.environ, **env, "BACKEND_URL": backend_url, "PYTHONUTF8": "1", "PYTHONUNBUFFERED": "1"}
         self.log_path = Path(log_path)
         self.port = port

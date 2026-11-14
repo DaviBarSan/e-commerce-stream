@@ -43,3 +43,13 @@ output "airflow_host_port" {
   description = "Host port for the Airflow API server; read by 20-resources (contract) and 30-services (container)."
   value       = var.airflow_host_port
 }
+
+output "store_api_host_port" {
+  description = "Host port for the store API; read by 30-services."
+  value       = var.store_api_host_port
+}
+
+output "store_web_host_port" {
+  description = "Host port for the storefront; read by 30-services."
+  value       = var.store_web_host_port
+}

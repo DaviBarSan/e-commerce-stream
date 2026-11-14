@@ -3,9 +3,18 @@
 *
 !dbt/
 !services/airflow/
+# Python services build from the uv workspace: root project, lock file, telemetry and every member's pyproject.
+!pyproject.toml
+!uv.lock
+!telemetry/
+!services/store_backend/
+!services/store_frontend/
+!services/ingest_consumer/pyproject.toml
 
 dbt/target/
 dbt/logs/
 dbt/dbt_packages/
 dbt/.user.yml
 **/__pycache__/
+services/store_frontend/.web/
+services/store_frontend/.states/

@@ -6,7 +6,7 @@ Living snapshot of where development stands and what comes next. Update it in th
 
 ## 1. Summary
 
-Phases 0–2 are complete. Phase 3 has the API and frontend done; Phase 5 is partly done; Phase 6 is done (T6.6, PR #13); Phase 7 has its Airflow base (T7.1) done (#11). The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
+Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `make up`, PR pending); Phase 5 is partly done; Phase 6 is done (#13); Phase 7 has its Airflow base (T7.1) done (#11). The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
 
 ## 2. Feature board
 
@@ -24,9 +24,9 @@ Phases 0–2 are complete. Phase 3 has the API and frontend done; Phase 5 is par
 | F06.2 dbt-sessions-funnel | T6.4, T6.5 | Done (merged, #10) | n/a |
 | F05.3 airflow-local | T7.1 | Done (merged, #11) | n/a |
 | F02.4 store-outbox | T3.7 | Done (merged, #12) | n/a |
-| F06.3 dbt-commerce-marts | T6.6 | Done on `feature/dbt-commerce-marts` (6/6), PR #13 open | n/a |
-| F05.4 airflow-transform-dag | T7.2 | Not started | yes, once F06.3 merges |
-| F02.3 store-deploy | T3.5, T3.6 | Not started | yes |
+| F06.3 dbt-commerce-marts | T6.6 | Done (merged, #13) | n/a |
+| F05.4 airflow-transform-dag | T7.2 | Not started | yes |
+| F02.3 store-deploy | T3.5, T3.6 | Done on `feature/store-deploy` (6/6), PR pending | n/a |
 | F05.2 ingest-deploy | T5.3 | Not started | yes |
 | F03.1 bot-simulation | T4.1, T4.2 | Not started (lowered priority) | yes |
 | F03.2 bot-deploy | T4.3 | Not started (lowered priority) | no: F03.1 + F02.3 |
@@ -49,17 +49,18 @@ Phases 0–2 are complete. Phase 3 has the API and frontend done; Phase 5 is par
    - **D17:** Airflow runs dbt with a `BashOperator`, using dbt in its own virtualenv inside the Airflow image, with the project baked in (spec 05 §7).
 3. ~~**F05.3 airflow-local (T7.1).**~~ Done 2026-11-14 (#11). Airflow `3.3.2-python3.12`, `30-services` stack, dbt `1.12.5` in `/opt/dbt-venv`.
 4. ~~**F02.4 store-outbox (T3.7).**~~ Done 2026-11-14 (#12).
-5. **(Current)** **F06.3 dbt-commerce-marts (T6.6).** Implemented and green on `feature/dbt-commerce-marts`; PR #13 open.
-6. **F05.4 airflow-transform-dag (T7.2).** `dbt source freshness`, `dbt build` (with tests), run summary; needs F05.3 and F06.3.
-7. **F02.3 store-deploy (T3.5, T3.6)**, in `30-services`.
-8. **F05.2 ingest-deploy (T5.3)**, in `30-services`.
+5. ~~**F06.3 dbt-commerce-marts (T6.6).**~~ Done 2026-11-14 (#13).
+6. **(Current)** **F02.3 store-deploy (T3.5, T3.6).** Implemented and green on `feature/store-deploy`; PR next. The storefront on `:3000` and the API on `:8000` under `make up`.
+7. **F05.2 ingest-deploy (T5.3)**, in `30-services`: clicks reach `raw.clickstream_events` without a host process.
+8. **F05.4 airflow-transform-dag (T7.2).** `dbt source freshness`, `dbt build` (with tests), run summary.
 9. **F03.1 bot-simulation (T4.1, T4.2)**, then **F03.2 bot-deploy (T4.3)**. Suggested default for spec 03 §10: API mode only.
 10. **F05.5 local-e2e (T7.3).** The MVP gate; opens Phase 8 (D5).
 
 ### Notes on the order
 
+- **Reordered 2026-11-14 for hands-on use:** store-deploy → ingest-deploy → transform DAG, so the owner can click through the storefront, see the events in raw, then run the DAG and debug it. No dependency changes.
+
 - **Bots are deferred, not dropped.** T7.3 depends on T4.3, so the bots must land before the local end-to-end run.
-- **The DAG's last dependency is the commerce marts (T6.6),** done on its branch; F05.4 starts once that PR merges.
 
 ## 5. Parking lot
 
@@ -81,3 +82,5 @@ Nothing blocks local work. Open `PLAN.md` §8 entries gate Phase 8 and later onl
 | 2026-11-14 | PR #12 merged (`8c84efa`); `feature/store-outbox` deleted. Step 5 (F06.3 dbt-commerce-marts) started on `feature/dbt-commerce-marts`. |
 | 2026-11-14 | Step 5 (F06.3 dbt-commerce-marts) implemented: `dbt-commerce-marts` 6/6. Fixes on the way: the outbox relay drains on shutdown; the `ingest-consumer` and `telemetry-producer` E2E-2 fixtures build coherent carts (local env reset once to drop the incoherent history); the line-total test reads only `fct_orders` (new `purchase_total_minor`). Regressions: dbt-sessions-funnel 9/9, dbt-foundations 8/8, store-outbox 5/5, ingest-consumer 6/6, telemetry-producer 11/11. T6.6 ticked. PR pending. |
 | 2026-11-14 | PR #13 opened for `feature/dbt-commerce-marts` (F06.3). |
+| 2026-11-14 | PR #13 merged (`5fa8a4a`); Phase 6 complete. Steps reordered for hands-on use (store-deploy → ingest-deploy → transform DAG). Step 6 (F02.3 store-deploy) started on `feature/store-deploy`. |
+| 2026-11-14 | Step 6 (F02.3 store-deploy) implemented: `store-deploy` 6/6. Images pinned on `python:3.12.15-slim-bookworm` and `uv:0.13.4`; host-run test servers moved to :18000 / :13000. Fixes on the way: the API venv is built at its final path (`/opt/venv`); the storefront healthcheck's `start_period` is written as `1m0s`. An interrupted apply left an untracked `store-api` container, removed by hand. Regressions: store-api 7/7, store-frontend 6/6, store-outbox 5/5, dbt-commerce-marts 6/6, airflow-local 9/9, infra-local-resources 9/9, infra-local-platform 9/9. T3.5–T3.6 ticked. PR pending. |

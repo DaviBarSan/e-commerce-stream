@@ -49,3 +49,15 @@ variable "airflow_host_port" {
   type        = number
   default     = 8080
 }
+
+variable "store_api_host_port" {
+  description = "Host port for the store API container (30-services)."
+  type        = number
+  default     = 8000
+}
+
+variable "store_web_host_port" {
+  description = "Host port for the storefront container (30-services); the Reflex UI and its backend share it."
+  type        = number
+  default     = 3000
+}

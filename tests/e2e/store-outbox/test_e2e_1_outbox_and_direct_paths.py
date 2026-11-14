@@ -6,7 +6,7 @@ import httpx
 import psycopg
 import pytest
 
-from e2e_support import ApiServer, local_env, read_messages, seed_store, topic_end_offsets
+from e2e_support import ApiServer, local_env, project_prefix, read_messages, run, seed_store, topic_end_offsets
 from telemetry import derive_event_id
 
 # Records every row inserted into the outbox while the flow runs, so the test sees rows the relay deletes.
@@ -83,8 +83,11 @@ def test_only_state_changes_went_through_the_outbox(journey):
 
 
 def test_the_relay_logged_its_committed_cycles(journey):
+    # The store-api container (store-deploy) runs its own relay on the same outbox; with SKIP LOCKED either
+    # relay may publish a row, so both logs count.
+    container = run(["docker", "logs", f"{project_prefix()}store-api"])
     cycles = []
-    for line in journey["server"].log().splitlines():
+    for line in (journey["server"].log() + container.stdout + container.stderr).splitlines():
         start = line.find('{"event": "outbox_cycle"')
         if start >= 0:
             cycles.append(json.loads(line[start:]))
