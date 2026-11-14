@@ -598,6 +598,57 @@ class AirflowApi:
         except (httpx.TransportError, ValueError):
             return None
 
+    # --- DAG runs (airflow-transform-dag and later) ---
+
+    def _ok(self, method, path, **kwargs):
+        resp = self.request(method, path, **kwargs)
+        assert resp.is_success, f"{method} {path}: {resp.status_code} {resp.text}"
+        return resp.json()
+
+    def wait_for_dag(self, dag_id, timeout=120):
+        """Wait until the DAG processor has parsed dag_id; returns the DAG."""
+        return wait_for(lambda: (r := self.request("GET", f"/dags/{dag_id}")).status_code == 200 and r.json(),
+                        timeout, interval=3, message=f"{dag_id} to be parsed")
+
+    def set_paused(self, dag_id, paused):
+        return self._ok("PATCH", f"/dags/{dag_id}", json={"is_paused": paused})
+
+    def trigger(self, dag_id, conf=None):
+        """A manual run; returns its dag_run_id."""
+        return self._ok("POST", f"/dags/{dag_id}/dagRuns", json={"logical_date": None, "conf": conf or {}})["dag_run_id"]
+
+    def runs(self, dag_id):
+        return self._ok("GET", f"/dags/{dag_id}/dagRuns", params={"limit": 100, "order_by": "-start_date"})["dag_runs"]
+
+    def run(self, dag_id, run_id):
+        from urllib.parse import quote
+
+        return self._ok("GET", f"/dags/{dag_id}/dagRuns/{quote(run_id, safe='')}")
+
+    def wait_for_run(self, dag_id, run_id, timeout=600):
+        """Wait until the run finishes; returns it (state success or failed)."""
+        return wait_for(lambda: (r := self.run(dag_id, run_id))["state"] in ("success", "failed") and r,
+                        timeout, interval=5, message=f"{run_id} to finish")
+
+    def task_states(self, dag_id, run_id):
+        """{task_id: state} of one run."""
+        from urllib.parse import quote
+
+        body = self._ok("GET", f"/dags/{dag_id}/dagRuns/{quote(run_id, safe='')}/taskInstances")
+        return {ti["task_id"]: ti["state"] for ti in body["task_instances"]}
+
+    def xcom(self, dag_id, run_id, task_id, key="return_value"):
+        from urllib.parse import quote
+
+        path = f"/dags/{dag_id}/dagRuns/{quote(run_id, safe='')}/taskInstances/{task_id}/xcomEntries/{key}"
+        return self._ok("GET", path, params={"deserialize": True})["value"]
+
+    def clear(self, dag_id, run_id, task_id):
+        """Clear one task and its downstream tasks, so the run resumes from that task."""
+        return self._ok("POST", f"/dags/{dag_id}/clearTaskInstances",
+                        json={"dry_run": False, "dag_run_id": run_id, "task_ids": [task_id],
+                              "include_downstream": True, "only_failed": False, "reset_dag_runs": True})
+
 
 def airflow_container(component):
     """Docker name of an Airflow container: api-server, scheduler, dag-processor or init."""
@@ -677,3 +728,49 @@ def container_state(container):
     """[id, restart count, running] of a container."""
     out = run(["docker", "inspect", "-f", "{{.Id}} {{.RestartCount}} {{.State.Running}}", container], check=True)
     return out.stdout.split()
+
+
+# --- clickstream_transform DAG (airflow-transform-dag, local-e2e) -----------------------------
+
+TRANSFORM_DAG = "clickstream_transform"
+TRANSFORM_LAYERS = ["dbt_seed", "dbt_staging", "dbt_intermediate", "dbt_marts"]
+TRANSFORM_TASKS = ["check_raw_freshness", *TRANSFORM_LAYERS, "publish_run_summary"]
+
+
+def apply_schedule(schedule):
+    """Apply the stacks with a DAG schedule; returns (contract env, Airflow API) once the DAG is parsed."""
+    run(["make", "up"], env=tf_env(transform_schedule=schedule), timeout=1800, check=True)
+    for component in ("api-server", "scheduler", "dag-processor"):
+        wait_container_healthy(airflow_container(component), timeout=300)
+    env = read_env_file(REPO_ROOT / ".env.local")
+    api = AirflowApi(env)
+    api.wait_for_dag(TRANSFORM_DAG)
+    return env, api
+
+
+def restore_default_schedule():
+    """Apply the stacks with the default DAG schedule (@hourly)."""
+    make("up")
+
+
+def run_folder(run_id):
+    """The run's artifacts folder on the host (airflow-runs/, the run ID without ':' and '+')."""
+    return REPO_ROOT / "airflow-runs" / run_id.replace(":", "").replace("+", "")
+
+
+def mart_counts(env):
+    """Row counts of the main marts and total revenue, to compare builds."""
+    return warehouse_query(env, """
+        select (select count(*) from marts.fct_events) as events,
+               (select count(*) from marts.fct_sessions) as sessions,
+               (select count(*) from marts.fct_carts) as carts,
+               (select count(*) from marts.fct_orders) as orders,
+               (select coalesce(sum(order_total_minor), 0) from marts.fct_orders) as revenue
+    """)[0]
+
+
+def parse_ts(value):
+    """An Airflow API timestamp as a datetime (None stays None)."""
+    from datetime import datetime
+
+    return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
