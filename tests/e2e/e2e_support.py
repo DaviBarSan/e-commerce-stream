@@ -353,15 +353,33 @@ class ConsumerProcess:
 
 
 def start_group_at_end(env, group_id):
-    """Commit a new consumer group's offsets at the topic's current end, so a test's consumer skips the history."""
-    from confluent_kafka import Consumer, TopicPartition
+    """Commit a new consumer group's offsets at the topic's current end, so a test's consumer skips the history.
 
+    On a fresh broker the first commits fail with coordinator errors (NOT_COORDINATOR) while `__consumer_offsets`
+    is being created. librdkafka doesn't flag these as retriable on a manual commit, so they are matched by code
+    and retried for up to 30 seconds.
+    """
+    import time
+
+    from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
+
+    coordinator_errors = {KafkaError.NOT_COORDINATOR, KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
+                          KafkaError.COORDINATOR_NOT_AVAILABLE}
     topic = env["EVENTS_TOPIC"]
     ends = topic_end_offsets(env["KAFKA_BOOTSTRAP_SERVERS"], topic)
+    offsets = [TopicPartition(topic, p, o) for p, o in ends.items()]
     consumer = Consumer({"bootstrap.servers": env["KAFKA_BOOTSTRAP_SERVERS"], "group.id": group_id,
                          "enable.auto.commit": False})
     try:
-        consumer.commit(offsets=[TopicPartition(topic, p, o) for p, o in ends.items()], asynchronous=False)
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                consumer.commit(offsets=offsets, asynchronous=False)
+                break
+            except KafkaException as exc:
+                if exc.args[0].code() not in coordinator_errors or time.monotonic() > deadline:
+                    raise
+                time.sleep(1)
     finally:
         consumer.close()
     return group_id
