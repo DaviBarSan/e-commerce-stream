@@ -45,6 +45,8 @@ Make every database change in the store reach the event stream, even across brok
   3. If `flush()` returns 0 and the producer's `stats().failed` and `stats().dropped` didn't grow during the cycle, deletes the batch and commits. Otherwise it rolls back, so the rows stay for the next cycle.
   4. Re-polls immediately after a full batch, and otherwise sleeps `OUTBOX_POLL_SECONDS` (default 1).
 
+  On a clean shutdown it finishes the current cycle, then drains: it runs cycles until one delivers nothing (an empty outbox, or a broker that's still down, in which case the rows wait for the next start). Added with `dbt-commerce-marts`, whose flows stop the API right after the last request.
+
   Duplicates caused by a retry (a batch partly delivered, then rolled back) are dropped by the raw table's primary key (D11).
 - **Producer:** `EventProducer` gets a `send_payload(payload)` method that publishes already-validated bytes without validating them again. It reads the routing key and header values (`event_id`, `session_id`, `schema_version`, `event_type`) from the payload into an `Envelope`, which `send_event` builds from the `Event`; drivers' `_publish(envelope, payload)` takes that envelope, so the relay doesn't re-build events.
 - **Logs:** one JSON line per non-empty cycle: `published`, `attempted`, `pending_after`, `cycle_ms`, `outcome` (`committed` / `rolled_back`). A cycle that raises (for example a database error) is logged and retried; it never stops the relay.

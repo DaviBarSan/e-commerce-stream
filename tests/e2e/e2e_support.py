@@ -598,3 +598,49 @@ class AirflowApi:
 def airflow_container(component):
     """Docker name of an Airflow container: api-server, scheduler, dag-processor or init."""
     return f"{project_prefix()}airflow-{component}"
+
+
+# --- store API journeys (dbt-commerce-marts, local-e2e) ---------------------------------------
+
+class Shopper:
+    """One store API session (store-api headers). Records the event_id each call produces (D13), to wait on raw."""
+
+    def __init__(self, url, run_id, name):
+        self.url, self.run_id = url, run_id
+        self.headers = {"X-Session-Id": f"s-{run_id}-{name}", "X-User-Id": f"anon-{run_id}-{name}"}
+        self.event_ids = []
+
+    def call(self, method, path, event_type, key, **kwargs):
+        import httpx
+
+        from telemetry import derive_event_id
+
+        idempotency_key = f"{self.run_id}-{self.headers['X-Session-Id']}-{key}"
+        response = httpx.request(method, self.url + path, timeout=10,
+                                 headers={**self.headers, "Idempotency-Key": idempotency_key}, **kwargs)
+        assert response.is_success, f"{method} {path}: {response.status_code} {response.text}"
+        self.event_ids.append(str(derive_event_id(idempotency_key, event_type)))
+        return response.json()
+
+    def add(self, product_id, key, quantity=1):
+        return self.call("POST", "/cart/items", "add_to_cart", key, json={"product_id": product_id,
+                                                                          "quantity": quantity})
+
+    def remove(self, product_id, key):
+        return self.call("DELETE", f"/cart/items/{product_id}", "remove_from_cart", key)
+
+    def checkout(self, key="checkout"):
+        return self.call("POST", "/checkout/start", "checkout_start", key)
+
+    def purchase(self, key="purchase"):
+        return self.call("POST", "/checkout/complete", "purchase", key)
+
+
+def ingest_until(env, group, event_ids, log_path, timeout=60):
+    """Run the host consumer in `group` until every event_id is in raw."""
+    consumer = ConsumerProcess(env, log_path, INGEST_GROUP_ID=group, INGEST_FLUSH_SECONDS=1).start()
+    try:
+        wait_for(lambda: len(raw_rows(env, event_ids, "event_id")) == len(event_ids), timeout,
+                 message=f"{len(event_ids)} events in raw")
+    finally:
+        consumer.stop()

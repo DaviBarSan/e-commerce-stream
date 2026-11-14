@@ -29,7 +29,7 @@ def test_broker_outage_loses_nothing():
     start = topic_end_offsets(bootstrap, topic)
     producer = get_producer(env)
     run_id, now = uuid.uuid4().hex[:8], datetime.now(timezone.utc)
-    events = [journey_1_event(run_id, n % 5, n, now) for n in range(50)]
+    events = [journey_1_event(run_id, n % 5, n // 5, now) for n in range(50)]  # 5 sessions, steps in order
 
     run(["docker", "stop", kafka], check=True)
     try:
