@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from store_backend.identity import get_identity
 from store_backend.models import Cart, CartItem, Product
 from store_backend.routers import get_db
-from store_backend.telemetry_hooks import emit, money
+from store_backend.telemetry_hooks import emit, emit_in_tx, money
 
 router = APIRouter(tags=["cart"])
 
@@ -69,10 +69,10 @@ def add_item(request: Request, body: AddItem, db: Session = Depends(get_db)) -> 
                                    unit_price_minor=product.price_minor, currency=product.currency))
     else:
         item.quantity += body.quantity
+    emit_in_tx(db, request, "add_to_cart", f"/products/{product.product_id}", product_id=product.product_id,
+               cart_id=cart.cart_id,
+               properties={"quantity": body.quantity, "unit_price": money(product.price_minor, product.currency)})
     db.commit()
-    emit(request, "add_to_cart", f"/products/{product.product_id}", product_id=product.product_id,
-         cart_id=cart.cart_id,
-         properties={"quantity": body.quantity, "unit_price": money(product.price_minor, product.currency)})
     return cart_out(cart)
 
 
@@ -83,8 +83,8 @@ def remove_item(request: Request, product_id: str, db: Session = Depends(get_db)
     if item is None:
         raise HTTPException(404, f"product {product_id} is not in the cart")
     cart.items.remove(item)
+    emit_in_tx(db, request, "remove_from_cart", "/cart", product_id=product_id, cart_id=cart.cart_id, properties={})
     db.commit()
-    emit(request, "remove_from_cart", "/cart", product_id=product_id, cart_id=cart.cart_id, properties={})
     return cart_out(cart)
 
 

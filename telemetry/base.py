@@ -1,6 +1,7 @@
 """EventProducer: the cloud-agnostic publishing interface (spec 04 §5, §7)."""
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from abc import ABC, abstractmethod
@@ -28,6 +29,16 @@ class DeliveryStats:
     dropped: int  # never enqueued (local queue full)
 
 
+@dataclass(frozen=True)
+class Envelope:
+    """What a driver needs besides the payload: the routing key and the header values (spec 04 §6)."""
+
+    event_id: str
+    session_id: str
+    schema_version: str
+    event_type: str
+
+
 def require_setting(env: Mapping[str, str], key: str) -> str:
     """A contract key from the environment, or TelemetryConfigError naming it."""
     value = env.get(key, "").strip()
@@ -48,10 +59,21 @@ class EventProducer(ABC):
         payload = serialize_event(event)
         validate_payload(payload)  # the single producer-side check, on the exact wire bytes
         self._record("sent")
-        self._publish(event, payload)
+        self._publish(Envelope(str(event.event_id), event.session_id, event.schema_version, event.event_type),
+                      payload)
+
+    def send_payload(self, payload: bytes) -> None:
+        """Publish an event that was already validated and serialized, e.g. by the store outbox (spec 02 §6.1).
+
+        Not validated again: the payload was checked on these exact bytes when it was built.
+        """
+        fields = json.loads(payload)
+        self._record("sent")
+        self._publish(Envelope(fields["event_id"], fields["session_id"], fields["schema_version"],
+                               fields["event_type"]), payload)
 
     @abstractmethod
-    def _publish(self, event: Event, payload: bytes) -> None:
+    def _publish(self, envelope: Envelope, payload: bytes) -> None:
         """Hand the serialized event to the transport without blocking; never raise for transport errors."""
 
     @abstractmethod
