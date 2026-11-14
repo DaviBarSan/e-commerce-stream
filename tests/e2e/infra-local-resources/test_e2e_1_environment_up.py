@@ -47,9 +47,10 @@ def test_databases_schemas_and_roles_exist(env):
     assert {"store_app", "ingest_writer", "dbt_runner", "airflow"} <= roles
     with pg_connect(admin, dbname="warehouse") as conn:
         schemas = dict(conn.execute(
-            "SELECT nspname, pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname IN ('raw','staging','marts')"
+            "SELECT nspname, pg_get_userbyid(nspowner) FROM pg_namespace WHERE nspname IN ('raw','staging','intermediate','marts')"
         ).fetchall())
-    assert schemas == {"raw": "ingest_writer", "staging": "dbt_runner", "marts": "dbt_runner"}
+    assert schemas == {"raw": "ingest_writer", "staging": "dbt_runner", "intermediate": "dbt_runner",
+                       "marts": "dbt_runner"}
 
 
 def test_role_dsns_connect_to_their_databases(env):

@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| Not started | [06](../../../06-transformation.md) | T6.4, T6.5 | dbt-foundations | 6 |
+| Done | [06](../../../06-transformation.md) | T6.4, T6.5 | dbt-foundations | 6 |
 
 ## 1. Goal
 Build the conformed dimensions and the browsing and funnel side of the dimensional model (D14): derive sessions from 30 minutes of inactivity, then publish the event fact, the session fact (the funnel as an accumulating snapshot) and its daily rollup. This answers journey 1's funnel questions (`PLAN.md` §9).
@@ -25,20 +25,23 @@ Build the conformed dimensions and the browsing and funnel side of the dimension
 ## 3. Implementation definition
 - **Terraform:** `postgresql_schema.dbt` `for_each` becomes `["staging", "intermediate", "marts"]`. Run `terraform fmt` and `validate`, then rerun the `infra-local-resources` flows.
 - **`dbt_project.yml`:** `intermediate` models go in schema `intermediate` (incremental) and `marts` models go in schema `marts` (table).
-- **`int_sessions`** (incremental, `unique_key = event_id`):
-  - Reads `stg_clickstream`, partitions by `user_id` and orders by `event_ts, event_id`.
-  - `is_new_session` is set when there's no previous event or the gap is over 30 minutes (`dbt.datediff`).
+- **The session rule** lives in the macro `dbt/macros/sessionize.sql`, so `int_sessions` and the boundary fixture test run the same SQL:
+  - It partitions by `user_id` and orders by `event_ts, event_id`.
+  - `is_new_session` is set when there's no previous event or the gap is over 30 minutes (`dbt.datediff`, in seconds).
   - `session_seq = SUM(is_new_session) OVER (…)`, and `session_key = dbt_utils.generate_surrogate_key(['user_id', 'session_seq'])`.
-  - The incremental window re-reads each affected user's events from 30 minutes before the earliest new event, so `session_seq` stays stable. A late event that bridges two sessions merges them on the next run.
+- **`int_sessions`** (incremental, `unique_key = event_id`):
+  - Reads `stg_clickstream` and applies `sessionize()`.
+  - An incremental run recomputes **every event of each user who has new events** (`ingested_at` after the table's latest). `session_seq` is then a deterministic running count over the user's whole history, so session keys never change for other users.
+  - A late event that bridges two sessions merges them on the next run.
 - **Dimensions** (tables, spec 06 §5.3):
-  - `dim_date` comes from `dbt_utils.date_spine`, from the first event date to 30 days ahead.
+  - `dim_date` comes from `dbt_utils.date_spine`, from `var('dim_date_start')` (`2026-01-01`) to a year ahead. `day_of_week` is ISO (Monday = 1), through the dispatched macro `day_of_week()`. Dates and hours are UTC.
   - `dim_time_of_day` has 24 rows.
   - `dim_page` comes from the `page_types` seed.
   - `dim_event_type` comes from `event_catalog`.
   - `dim_users` and `dim_sessions` are built from `int_sessions` and `stg_clickstream`.
 - **Facts** (tables):
   - `fct_events`: `event_id`, `event_ts`, `date_day`, `hour_of_day`, `user_id`, `session_key`, `client_session_id`, `event_type`, `page_type`, `product_id`, `cart_id`, `order_id`.
-  - `fct_sessions`: one row per `session_key`, with the first timestamp of each funnel step (from `event_catalog.funnel_step`), step flags, `event_count`, `search_count` (from `stg_events__navigation`) and `duration_seconds`.
+  - `fct_sessions`: one row per `session_key`, with the first timestamp of each funnel step (from `event_catalog.funnel_step`), step flags, `event_count`, `search_count`, `zero_result_search_count` (from `stg_events__navigation`) and `duration_seconds`. The funnel is ordered: a step counts only at or after the previous one, so reached counts never increase.
   - `agg_funnel_daily`: sessions reaching each step per `date_day` × landing page type.
 - **Tests:** spec 06 §7 rows for `int_sessions`, dimensions, facts and `fct_sessions`, including:
   - The singular 29/31-minute boundary test on `dbt/seeds/fixtures/session_gaps.csv`.

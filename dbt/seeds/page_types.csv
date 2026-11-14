@@ -1,0 +1,8 @@
+page_type,funnel_stage,sort_order
+home,browse,1
+catalog,browse,2
+search,discovery,3
+pdp,consideration,4
+cart,intent,5
+checkout,checkout,6
+confirmation,conversion,7

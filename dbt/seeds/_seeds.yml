@@ -29,3 +29,16 @@ seeds:
         description: The journey-1 funnel step (1 search … 5 purchase); empty when not a funnel step.
       - name: is_conversion
         description: True for the event that completes a conversion.
+
+  - name: page_types
+    description: The dim_page rows (spec 06 §5.3); every page_type in staging must be listed here.
+    columns:
+      - name: page_type
+        data_tests: [unique, not_null]
+      - name: funnel_stage
+        data_tests: [not_null]
+
+  - name: session_gaps
+    description: >
+      Sessionization fixture (spec 06 §7): events with the session_seq the 30-minute rule must give them.
+      A 29-minute gap and an exact 30-minute gap stay in the session; a 31-minute gap starts a new one.

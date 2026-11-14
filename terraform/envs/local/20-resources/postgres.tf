@@ -27,7 +27,7 @@ resource "postgresql_database" "airflow" {
   owner = postgresql_role.this["airflow"].name
 }
 
-# --- warehouse: raw (ingest_writer), staging + marts (dbt_runner) ---
+# --- warehouse: raw (ingest_writer), staging + intermediate + marts (dbt_runner) ---
 resource "postgresql_database" "warehouse" {
   name = "warehouse"
 }
@@ -40,7 +40,7 @@ resource "postgresql_schema" "raw" {
 }
 
 resource "postgresql_schema" "dbt" {
-  for_each     = toset(["staging", "marts"])
+  for_each     = toset(["staging", "intermediate", "marts"])
   name         = each.key
   database     = postgresql_database.warehouse.name
   owner        = postgresql_role.this["dbt_runner"].name

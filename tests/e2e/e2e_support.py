@@ -353,15 +353,33 @@ class ConsumerProcess:
 
 
 def start_group_at_end(env, group_id):
-    """Commit a new consumer group's offsets at the topic's current end, so a test's consumer skips the history."""
-    from confluent_kafka import Consumer, TopicPartition
+    """Commit a new consumer group's offsets at the topic's current end, so a test's consumer skips the history.
 
+    On a fresh broker the first commits fail with coordinator errors (NOT_COORDINATOR) while `__consumer_offsets`
+    is being created. librdkafka doesn't flag these as retriable on a manual commit, so they are matched by code
+    and retried for up to 30 seconds.
+    """
+    import time
+
+    from confluent_kafka import Consumer, KafkaError, KafkaException, TopicPartition
+
+    coordinator_errors = {KafkaError.NOT_COORDINATOR, KafkaError.COORDINATOR_LOAD_IN_PROGRESS,
+                          KafkaError.COORDINATOR_NOT_AVAILABLE}
     topic = env["EVENTS_TOPIC"]
     ends = topic_end_offsets(env["KAFKA_BOOTSTRAP_SERVERS"], topic)
+    offsets = [TopicPartition(topic, p, o) for p, o in ends.items()]
     consumer = Consumer({"bootstrap.servers": env["KAFKA_BOOTSTRAP_SERVERS"], "group.id": group_id,
                          "enable.auto.commit": False})
     try:
-        consumer.commit(offsets=[TopicPartition(topic, p, o) for p, o in ends.items()], asynchronous=False)
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                consumer.commit(offsets=offsets, asynchronous=False)
+                break
+            except KafkaException as exc:
+                if exc.args[0].code() not in coordinator_errors or time.monotonic() > deadline:
+                    raise
+                time.sleep(1)
     finally:
         consumer.close()
     return group_id
@@ -376,6 +394,30 @@ def raw_rows(env, event_ids, columns="*", dsn_key="WAREHOUSE_DSN"):
     with psycopg.connect(env[dsn_key], row_factory=dict_row, connect_timeout=10) as conn:
         return conn.execute(f"SELECT {columns} FROM {table} WHERE event_id = ANY(%s::uuid[])",
                             ([str(i) for i in event_ids],)).fetchall()
+
+
+def ingest_events(env, events, log_dir, timeout=60):
+    """Publish events with the telemetry producer and run the ingest consumer until all are in raw."""
+    import uuid
+
+    from telemetry import get_producer
+
+    ids = [str(e.event_id) for e in events]
+    group = start_group_at_end(env, f"e2e-ingest-{uuid.uuid4().hex[:8]}")
+    producer = get_producer(env)
+    for event in events:
+        producer.send_event(event)
+    assert producer.flush(30) == 0
+    producer.close()
+
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    consumer = ConsumerProcess(env, Path(log_dir) / "consumer.log", INGEST_GROUP_ID=group,
+                               INGEST_FLUSH_SECONDS=1).start()
+    try:
+        wait_for(lambda: len(raw_rows(env, ids, "event_id")) == len(ids), timeout, message="events in raw")
+    finally:
+        consumer.stop()
+    return ids
 
 
 def dbt(args, timeout=900):

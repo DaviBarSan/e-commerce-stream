@@ -14,12 +14,20 @@ clean-targets: [target, dbt_packages]
 vars:
   # Event schema versions staging accepts (spec 06 §5.1); other rows stay in raw and a warn test reports them.
   supported_schema_versions: ["1"]
+  # First day of dim_date; every event date must fall on or after it.
+  dim_date_start: "2026-01-01"
 
 models:
   clickstream:
     staging:
       +schema: staging
       +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: incremental
+    marts:
+      +schema: marts
+      +materialized: table
 
 seeds:
   clickstream:
