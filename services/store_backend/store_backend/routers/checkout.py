@@ -9,7 +9,7 @@ from store_backend.identity import get_identity
 from store_backend.models import Order
 from store_backend.routers import get_db
 from store_backend.routers.cart import cart_out, open_cart
-from store_backend.telemetry_hooks import emit, money
+from store_backend.telemetry_hooks import emit, emit_in_tx, money
 
 router = APIRouter(tags=["checkout"])
 
@@ -53,8 +53,8 @@ def checkout_complete(request: Request, db: Session = Depends(get_db)) -> OrderO
                   total_minor=summary.total_minor, currency=summary.currency)
     db.add(order)
     cart.status = "converted"
+    emit_in_tx(db, request, "purchase", "/checkout/confirmation", cart_id=cart.cart_id, order_id=order.order_id,
+               properties={"total": money(order.total_minor, order.currency)})
     db.commit()
-    emit(request, "purchase", "/checkout/confirmation", cart_id=cart.cart_id, order_id=order.order_id,
-         properties={"total": money(order.total_minor, order.currency)})
     return OrderOut(order_id=order.order_id, cart_id=cart.cart_id, total_minor=order.total_minor,
                     currency=order.currency)

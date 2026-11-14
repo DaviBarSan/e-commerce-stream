@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| Not started | [02](../../../02-store-app.md) | T3.7 | store-api, ingest-consumer | 3 |
+| Done | [02](../../../02-store-app.md) | T3.7 | store-api, ingest-consumer | 3 |
 
 ## 1. Goal
 Make every database change in the store reach the event stream, even across broker outages and API crashes, so the warehouse never under-reports carts or sales (D15). Today the API commits and then publishes asynchronously, so an event can be lost after its change is committed. Only state-change events move to the outbox; browsing events keep the cheap direct path.
@@ -27,7 +27,7 @@ Make every database change in the store reach the event stream, even across brok
 - **Model** (`services/store_backend/store_backend/models.py`): `OutboxEvent`, table `outbox_events`, with:
   - `seq` (identity primary key, the publish order)
   - `event_id` (unique)
-  - `payload` (JSON: the serialized, validated event)
+  - `payload` (text: the serialized event, exactly the bytes that were validated, so the relay republishes them unchanged; JSONB would reorder the keys)
   - `created_at`
 
   It's created by the existing `create_schema(engine)`, and the store tables need no other change.
@@ -36,6 +36,7 @@ Make every database change in the store reach the event stream, even across brok
   - New `emit_in_tx(db, request, event_type, default_page_url, **fields)`:
     - Builds the event the same way and validates it on its wire bytes (`serialize_event` + `validate_payload`, the single producer-side check).
     - Adds an `outbox_events` row to the request's session with `INSERT … ON CONFLICT (event_id) DO NOTHING`, so a retried request adds nothing.
+    - `emit()` and `emit_in_tx()` share one builder (`_event`), so both paths derive `event_id` the same way.
     - Doesn't commit.
 - **Routers:** `cart.add_item`, `cart.remove_item` and `checkout.checkout_complete` call `emit_in_tx` before `db.commit()`, so the change and its event commit together. Every other endpoint keeps `emit()`.
 - **Relay** (`store_backend/outbox.py`): an asyncio task started and stopped by the FastAPI `lifespan` (`store_backend/main.py`). It works off the event loop in a worker thread and uses its own DB session. Each cycle is one transaction:
@@ -45,8 +46,8 @@ Make every database change in the store reach the event stream, even across brok
   4. Re-polls immediately after a full batch, and otherwise sleeps `OUTBOX_POLL_SECONDS` (default 1).
 
   Duplicates caused by a retry (a batch partly delivered, then rolled back) are dropped by the raw table's primary key (D11).
-- **Producer:** `EventProducer` gets a `send_payload(event_id, session_id, payload)` method that publishes already-validated bytes, with the Kafka key and headers from the payload, so the relay doesn't re-build events. No other driver change is needed.
-- **Logs:** one JSON line per non-empty cycle: `published`, `pending_after`, `cycle_ms`, `outcome` (`committed` / `rolled_back`).
+- **Producer:** `EventProducer` gets a `send_payload(payload)` method that publishes already-validated bytes without validating them again. It reads the routing key and header values (`event_id`, `session_id`, `schema_version`, `event_type`) from the payload into an `Envelope`, which `send_event` builds from the `Event`; drivers' `_publish(envelope, payload)` takes that envelope, so the relay doesn't re-build events.
+- **Logs:** one JSON line per non-empty cycle: `published`, `attempted`, `pending_after`, `cycle_ms`, `outcome` (`committed` / `rolled_back`). A cycle that raises (for example a database error) is logged and retried; it never stops the relay.
 - **Config:** `OUTBOX_BATCH_SIZE` (default 500) and `OUTBOX_POLL_SECONDS` (default 1), both optional with defaults (spec 02 §8).
 
 ## 4. Interfaces
@@ -64,7 +65,7 @@ The flows run the API on the host (`ApiServer` in `tests/e2e/e2e_support.py`) an
 1. Run a journey-1 session through the API: home, product view, add twice, remove, purchase.
 2. Within 10 seconds, Kafka has every event of the session exactly once, in per-session order.
 3. `store.outbox_events` is empty afterwards.
-4. The relay log shows the cart and purchase events published from the outbox. The `page_view` and `product_view` events never appear in the outbox; this is checked with a statement-level row counter on the table during the run.
+4. The relay log shows the cart and purchase events published from the outbox. The `page_view` and `product_view` events never appear in the outbox; this is checked with a test-only trigger that records every row inserted into the table during the run (rows the relay deletes are still counted).
 
 **E2E-2: a crash during a broker outage loses nothing.**
 1. Stop the Kafka container.
@@ -78,4 +79,6 @@ The flows run the API on the host (`ApiServer` in `tests/e2e/e2e_support.py`) an
 Both flows pass through `make e2e FEATURE=store-outbox`, the reruns in E2E-2 step 6 pass, and `scripts/check_sdk_imports.py` passes.
 
 ## 7. Open items
-None. Journey 10 (order status events vs CDC) stays parked (`PLAN.md` §8).
+None. Ordering consequence of D15, recorded in spec 04 §6: a session's events keep their order within each delivery path, not across them, and consumers order by `event_ts`. The `store-api` E2E-1 flow checks order per path accordingly.
+
+Journey 10 (order status events vs CDC) stays parked (`PLAN.md` §8).

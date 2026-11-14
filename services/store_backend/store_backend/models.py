@@ -1,7 +1,9 @@
 """Store tables (spec 02 §5). Money is integer minor units plus a currency (spec 04 §3.2)."""
+import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import CHAR, DateTime, ForeignKey, Index, Integer, String, text
+from sqlalchemy import (CHAR, BigInteger, DateTime, ForeignKey, Identity, Index, Integer, String, Text, Uuid,
+                        text)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -74,4 +76,16 @@ class Order(Base):
     user_id: Mapped[str] = mapped_column(String)  # no foreign key: anonymous buyers are allowed
     total_minor: Mapped[int] = mapped_column(Integer)
     currency: Mapped[str] = mapped_column(CHAR(3))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class OutboxEvent(Base):
+    """A state-change event waiting for the relay (D15, spec 02 §6.1), written in the same transaction as
+    its change. `payload` holds the exact validated wire bytes, so the relay republishes them unchanged."""
+
+    __tablename__ = "outbox_events"
+
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)  # publish order
+    event_id: Mapped[uuid.UUID] = mapped_column(Uuid, unique=True)
+    payload: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

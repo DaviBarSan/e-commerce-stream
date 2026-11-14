@@ -103,7 +103,7 @@ telemetry/
 | Payload | UTF-8 JSON | UTF-8 JSON | UTF-8 JSON |
 | Headers / attributes | `schema_version`, `event_type` | same attributes | not applicable |
 
-Partitioning by `session_id` keeps each session in order, which the sessionization in spec 06 depends on.
+Partitioning by `session_id` keeps each session's events in publish order **within a delivery path** (§7). State-change events reach the stream through the store outbox (D15) and can arrive after browsing events that were published later, so the stream doesn't guarantee one order across the two paths. Consumers order a session by `event_ts` (then `event_id`), as the sessionization in spec 06 does, never by offset.
 
 ## 7. Delivery semantics
 - **At least once** from end to end:

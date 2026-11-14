@@ -61,13 +61,20 @@ def test_order_is_stored_and_cart_converted(journey):
     assert status == ("converted",)
 
 
+OUTBOX_TYPES = {"add_to_cart", "remove_from_cart", "purchase"}  # delivered through the store outbox (D15)
+
+
 def test_kafka_has_exactly_the_journey_events(journey):
-    messages = journey["messages"]
+    received = [(validate_payload(m["value"])["event_type"], m["event_id"]) for m in journey["messages"]]
+    expected = [(event_type, event_id) for (event_type, _), event_id in zip(journey["calls"], journey["expected_ids"])]
     # The retried search reuses its key, so it has the same event_id as the first one.
-    assert [m["event_id"] for m in messages] == journey["expected_ids"]
     assert journey["expected_ids"][0] == journey["expected_ids"][1]
-    assert [validate_payload(m["value"])["event_type"] for m in messages] == [
+    assert sorted(received) == sorted(expected)
+    assert [t for t, _ in expected] == [
         "search", "search", "product_view", "add_to_cart", "add_to_cart", "checkout_start", "purchase"]
+    # Order holds within each delivery path; across paths, consumers order by event_ts (spec 04 §6).
+    for outbox in (True, False):
+        assert [e for e in received if (e[0] in OUTBOX_TYPES) == outbox] ==             [e for e in expected if (e[0] in OUTBOX_TYPES) == outbox]
 
 
 def test_events_carry_identity_join_keys_and_prices(journey):

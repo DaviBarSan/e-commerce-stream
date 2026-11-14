@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from store_backend.db import create_schema, make_engine, session_factory
 from store_backend.identity import IdentityMiddleware
+from store_backend.outbox import OutboxRelay
 from store_backend.routers import cart, catalog, checkout
 from store_backend.settings import Settings
 from telemetry import get_producer
@@ -20,9 +21,13 @@ async def lifespan(app: FastAPI):
     create_schema(engine)
     app.state.sessions = session_factory(engine)
     app.state.producer = get_producer()  # one producer per process (spec 04 §5)
+    relay = OutboxRelay(app.state.sessions, app.state.producer, settings.outbox_batch_size,
+                        settings.outbox_poll_seconds)
+    relay.start()
     try:
         yield
     finally:
+        await relay.stop()
         app.state.producer.close()  # flushes pending events
         engine.dispose()
 

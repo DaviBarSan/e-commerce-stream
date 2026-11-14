@@ -6,8 +6,7 @@ from functools import partial
 
 from confluent_kafka import KafkaException, Producer
 
-from telemetry.base import EventProducer, log, require_setting
-from telemetry.schema import Event
+from telemetry.base import Envelope, EventProducer, log, require_setting
 
 # Broker outages shorter than message.timeout.ms lose nothing; longer ones count as `failed`.
 PRODUCER_CONFIG = {
@@ -32,18 +31,18 @@ class KafkaEventProducer(EventProducer):
         self._topic = topic
         self._producer = Producer({"bootstrap.servers": bootstrap_servers, **PRODUCER_CONFIG})
 
-    def _publish(self, event: Event, payload: bytes) -> None:
+    def _publish(self, envelope: Envelope, payload: bytes) -> None:
         headers = [
-            ("schema_version", event.schema_version.encode()),
-            ("event_type", event.event_type.encode()),
+            ("schema_version", envelope.schema_version.encode()),
+            ("event_type", envelope.event_type.encode()),
             ("content-type", b"application/json"),
         ]
-        event_id = str(event.event_id)
+        event_id = envelope.event_id
         for attempt in (1, 2):
             try:
                 self._producer.produce(
                     self._topic,
-                    key=event.session_id.encode(),
+                    key=envelope.session_id.encode(),
                     value=payload,
                     headers=headers,
                     on_delivery=partial(self._on_delivery, event_id),

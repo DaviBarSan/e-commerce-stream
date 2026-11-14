@@ -281,6 +281,12 @@ class ApiServer:
             self.proc.wait(10)
         self._log.close()
 
+    def kill(self):
+        """Hard kill: no lifespan shutdown, so the producer's in-memory buffer is lost."""
+        self.proc.kill()
+        self.proc.wait(10)
+        self._log.close()
+
     def log(self):
         return self.log_path.read_text(errors="replace")
 
