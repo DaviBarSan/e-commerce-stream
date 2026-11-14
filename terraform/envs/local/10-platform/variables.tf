@@ -43,3 +43,9 @@ variable "keep_data" {
   type        = bool
   default     = false
 }
+
+variable "airflow_host_port" {
+  description = "Host port for the Airflow API server (30-services). Declared here so every host port lives in one stack."
+  type        = number
+  default     = 8080
+}

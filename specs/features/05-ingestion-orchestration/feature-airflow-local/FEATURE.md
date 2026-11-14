@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| Not started | [05](../../../05-ingestion-orchestration.md) | T7.1 | infra-local-resources | 7 |
+| Done | [05](../../../05-ingestion-orchestration.md) | T7.1 | infra-local-resources | 7 |
 
 ## 1. Goal
 Run Airflow locally under `make up`, managed by Terraform, with its metadata in the `airflow` database and a dbt that can reach the warehouse from inside the containers. This is the orchestration base for the transform DAG (F05.4) and the local end-to-end run (F05.5).
@@ -27,7 +27,7 @@ Run Airflow locally under `make up`, managed by Terraform, with its metadata in 
   - GCP orchestration (Phase 8, parking lot)
 
 ## 3. Implementation definition
-- **Versions:** `AIRFLOW_IMAGE=apache/airflow:<3.x pinned>-python3.12` in `versions.env`, exported to Terraform as `TF_VAR_airflow_image`. The exact tag is chosen at implementation (at least two weeks old) and is the only Airflow version in the repo.
+- **Versions:** `AIRFLOW_IMAGE=apache/airflow:3.3.2-python3.12` in `versions.env` (the newest release at least two weeks old on 2026-11-14), exported to Terraform as `TF_VAR_airflow_image`. It is the only Airflow version in the repo.
 - **Makefile:**
   - `STACKS` for local becomes `10-platform 20-resources 30-services`; `down` walks them in reverse.
   - `ENV_STACK` (the stack that writes `.env.<ENV>`) is set explicitly to `20-resources` for local instead of "the last stack".
@@ -36,7 +36,8 @@ Run Airflow locally under `make up`, managed by Terraform, with its metadata in 
 - **`20-resources`:**
   - `random_password.airflow_admin` (alphanumeric, like the role passwords).
   - Contract keys `AIRFLOW_API_URL = http://127.0.0.1:<airflow_host_port>` and `AIRFLOW_ADMIN_PASSWORD`.
-  - A sensitive output `service_credentials`: per role (`ingest_writer`, `dbt_runner`, `store_app`, `airflow`), the user, password and database, plus the Airflow admin password. `30-services` builds in-network DSNs from it (`postgresql://<role>:<password>@postgres:5432/<db>`).
+  - A sensitive output `service_credentials`: per role (`ingest_writer`, `dbt_runner`, `store_app`, `airflow`), the user, password and database, plus the Airflow admin password, the raw schema and the topic names. `30-services` builds in-network DSNs from it (`postgresql://<role>:<password>@postgres:5432/<db>`). The role-to-database map is defined once (`local.role_database`) and shared with the contract DSNs.
+  - The AWS placeholder (`modules/aws`) gains the two keys, empty.
 - **`30-services` stack:**
   - Local backend; providers `kreuzwerker/docker` and `random` at the pinned versions; the same contract inputs as the other stacks (`project_name`, `environment`, `labels`).
   - Two `terraform_remote_state` data sources: `10-platform` (network name) and `20-resources` (`service_credentials`, topic names).
@@ -45,7 +46,8 @@ Run Airflow locally under `make up`, managed by Terraform, with its metadata in 
   - `FROM ${AIRFLOW_IMAGE}`.
   - `python -m venv /opt/dbt-venv` and `pip install dbt-core==${DBT_CORE_VERSION} dbt-postgres==${DBT_POSTGRES_VERSION}` into it, so no dbt dependency lands in Airflow's environment.
   - `COPY dbt/` to `/opt/dbt` (excluding `target/`, `logs/`, `dbt_packages/` via `.dockerignore`), then `dbt deps` at build time.
-  - `ENV DBT_PROFILES_DIR=/opt/dbt`, `PATH` unchanged (DAGs call `/opt/dbt-venv/bin/dbt` explicitly).
+  - `ENV DBT_PROJECT_DIR=/opt/dbt DBT_PROFILES_DIR=/opt/dbt DBT_SEND_ANONYMOUS_USAGE_STATS=false`, so dbt finds the project from any working directory; `PATH` unchanged (DAGs call `/opt/dbt-venv/bin/dbt` explicitly).
+- **`/.dockerignore`** (repo root, the build context): an allow-list (`*`, then `!dbt/` and `!services/airflow/`) minus dbt build output, so `.env*`, `.venv` and the rest of the repo never reach an image. Later services add their own exceptions.
 - **`modules/local/airflow`:**
   - `docker_image` built from `services/airflow/Dockerfile`, with a trigger on the hash of the Dockerfile, `dbt/` (sources only) and the version inputs, so a dbt change rebuilds the image.
   - Shared container environment:
@@ -53,12 +55,13 @@ Run Airflow locally under `make up`, managed by Terraform, with its metadata in 
     - `AIRFLOW__DATABASE__SQL_ALCHEMY_CONN` from the `airflow` role, in-network (`postgresql+psycopg2://…@postgres:5432/airflow`)
     - `AIRFLOW__CORE__LOAD_EXAMPLES=False`, `AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=True`
     - The execution API URL pointing at the `api-server` container, and a shared JWT secret / Fernet key from `random_password` / `random_id` in this stack
-    - Simple auth manager with one `admin` user (role `admin`); its password comes from `AIRFLOW_ADMIN_PASSWORD` through a passwords file the module writes and mounts read-only
-    - dbt settings for DAG tasks: `DBT_WAREHOUSE_DSN` (in-network, `dbt_runner`), `DBT_TARGET=local`, `WAREHOUSE_RAW_SCHEMA`
+    - Simple auth manager with one `admin` user (role `admin`). Airflow opens its passwords file read-write, so the api-server's command writes the file from `AIRFLOW_ADMIN_PASSWORD` (passed only to that container) before starting `airflow api-server`
+    - `AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL=10`, so new DAG files show up in seconds instead of the default 5 minutes
+    - dbt settings for DAG tasks: `DBT_WAREHOUSE_DSN` (in-network, `dbt_runner`), `DBT_TARGET=local`, `WAREHOUSE_RAW_SCHEMA`, and `DBT_TARGET_PATH` / `DBT_LOG_PATH` under `/tmp/dbt` (F05.4 makes them per run)
   - Containers on the platform network:
-    - `airflow-init`: runs `airflow db migrate` once (`must_run = false`, `attach = true` so the apply waits for it and fails if it fails).
+    - `airflow-init`: runs `airflow db migrate` once (`must_run = false`, `attach = true` so the apply waits for it; a `postcondition` on `exit_code == 0` fails the apply if the migration fails).
     - `airflow-api-server` on host `airflow_host_port` → 8080, with a healthcheck on `/api/v2/monitor/health`.
-    - `airflow-scheduler` and `airflow-dag-processor`, each with an Airflow-provided healthcheck command.
+    - `airflow-scheduler` (healthcheck on its built-in health server, `:8974/health`) and `airflow-dag-processor` (`airflow jobs check --job-type DagProcessorJob --local`).
   - `dags/` bind-mounted read-only at `/opt/airflow/dags` in the scheduler and DAG processor.
   - Restart policy `unless-stopped` for the three long-running containers.
 - **Teardown:** `make down` destroys `30-services` first; the containers and the built image are removed. Metadata lives in the `airflow` database, so it goes with `20-resources`.

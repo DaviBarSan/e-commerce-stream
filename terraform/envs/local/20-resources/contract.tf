@@ -2,13 +2,17 @@ locals {
   pg_host = local.platform.postgres_host
   pg_port = local.platform.postgres_port
 
+  # Database each role connects to.
+  role_database = {
+    ingest_writer = postgresql_database.warehouse.name
+    dbt_runner    = postgresql_database.warehouse.name
+    store_app     = postgresql_database.store.name
+    airflow       = postgresql_database.airflow.name
+  }
+
   dsn = {
-    for role, db in {
-      ingest_writer = postgresql_database.warehouse.name
-      dbt_runner    = postgresql_database.warehouse.name
-      store_app     = postgresql_database.store.name
-      airflow       = postgresql_database.airflow.name
-    } : role => "postgresql://${role}:${random_password.role[role].result}@${local.pg_host}:${local.pg_port}/${db}"
+    for role, db in local.role_database :
+    role => "postgresql://${role}:${random_password.role[role].result}@${local.pg_host}:${local.pg_port}/${db}"
   }
 
   # Environment contract outputs (spec 01 §4.2), host-facing values. Keys that don't apply are empty.
@@ -25,6 +29,8 @@ locals {
     STORE_DB_DSN            = local.dsn["store_app"]
     DBT_WAREHOUSE_DSN       = local.dsn["dbt_runner"]
     AIRFLOW_DB_DSN          = local.dsn["airflow"]
+    AIRFLOW_API_URL         = "http://127.0.0.1:${local.platform.airflow_host_port}"
+    AIRFLOW_ADMIN_PASSWORD  = random_password.airflow_admin.result
   }
 }
 
@@ -41,4 +47,21 @@ output "contract" {
   description = "Environment contract (spec 01 §4.2), as written to .env.<environment>."
   value       = local.contract
   sensitive   = true
+}
+
+# Per-role credentials for the service containers in 30-services (D16), which build in-network DSNs
+# (postgres:5432) from them. The contract above holds the host-facing values only.
+output "service_credentials" {
+  description = "Per-role Postgres user, password and database, plus the Airflow admin password, for 30-services."
+  value = {
+    roles = {
+      for role, db in local.role_database :
+      role => { user = role, password = random_password.role[role].result, database = db }
+    }
+    airflow_admin_password = random_password.airflow_admin.result
+    warehouse_raw_schema   = postgresql_schema.raw.name
+    events_topic           = kafka_topic.this["events"].name
+    events_dlq_topic       = kafka_topic.this["events_dlq"].name
+  }
+  sensitive = true
 }

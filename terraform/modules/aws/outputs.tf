@@ -14,5 +14,7 @@ output "contract" {
     STORE_DB_DSN            = ""
     DBT_WAREHOUSE_DSN       = ""
     AIRFLOW_DB_DSN          = ""
+    AIRFLOW_API_URL         = ""
+    AIRFLOW_ADMIN_PASSWORD  = ""
   }
 }

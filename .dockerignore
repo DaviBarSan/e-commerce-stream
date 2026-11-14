@@ -1,0 +1,11 @@
+# Image builds use the repo root as context (spec 01, D16). Send only what images need:
+# each service's Dockerfile adds its own exceptions here.
+*
+!dbt/
+!services/airflow/
+
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml
+**/__pycache__/

@@ -23,7 +23,8 @@ def test_env_file_has_every_contract_key(env):
     assert sorted(env) == sorted(CONTRACT_KEYS)
     assert env["STREAMING_BACKEND"] == "kafka" and env["WAREHOUSE_BACKEND"] == "postgres"
     for key in ["KAFKA_BOOTSTRAP_SERVERS", "EVENTS_TOPIC", "EVENTS_DLQ_TOPIC", "WAREHOUSE_DSN",
-                "WAREHOUSE_RAW_SCHEMA", "STORE_DB_DSN", "DBT_WAREHOUSE_DSN", "AIRFLOW_DB_DSN"]:
+                "WAREHOUSE_RAW_SCHEMA", "STORE_DB_DSN", "DBT_WAREHOUSE_DSN", "AIRFLOW_DB_DSN",
+                "AIRFLOW_API_URL", "AIRFLOW_ADMIN_PASSWORD"]:
         assert env[key], f"{key} is empty"
 
 

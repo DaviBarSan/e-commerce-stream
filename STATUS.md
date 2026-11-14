@@ -6,7 +6,7 @@ Living snapshot of where development stands and what comes next. Update it in th
 
 ## 1. Summary
 
-Phases 0–2 are complete. Phase 3 has the API and frontend done; Phases 5 and 6 are partly done. The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
+Phases 0–2 are complete. Phase 3 has the API and frontend done; Phases 5 and 6 are partly done; Phase 7 has its Airflow base (T7.1) done on `feature/airflow-local` (PR pending). The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
 
 ## 2. Feature board
 
@@ -22,15 +22,15 @@ Phases 0–2 are complete. Phase 3 has the API and frontend done; Phases 5 and 6
 | F05.1 ingest-consumer | T5.1, T5.2, T5.4 | Done | n/a |
 | F06.1 dbt-foundations | T6.1–T6.3 | Done | n/a |
 | F06.2 dbt-sessions-funnel | T6.4, T6.5 | Done (merged, #10) | n/a |
-| F05.3 airflow-local | T7.1 | Not started (doc drafted, in review) | yes (needs T1.5 only) |
+| F05.3 airflow-local | T7.1 | Done on `feature/airflow-local` (9/9), PR pending | n/a |
 | F02.4 store-outbox | T3.7 | Not started | yes |
 | F06.3 dbt-commerce-marts | T6.6 | Not started | no: F02.4 |
-| F05.4 airflow-transform-dag | T7.2 | Not started (doc drafted, in review) | no: F05.3 + F06.3 |
-| F02.3 store-deploy | T3.5, T3.6 | Not started | no: F05.3 (creates `30-services`) |
-| F05.2 ingest-deploy | T5.3 | Not started (doc drafted, in review) | no: F05.3 (creates `30-services`) |
+| F05.4 airflow-transform-dag | T7.2 | Not started | no: F06.3 |
+| F02.3 store-deploy | T3.5, T3.6 | Not started | yes, once F05.3 merges |
+| F05.2 ingest-deploy | T5.3 | Not started | yes, once F05.3 merges |
 | F03.1 bot-simulation | T4.1, T4.2 | Not started (lowered priority) | yes |
 | F03.2 bot-deploy | T4.3 | Not started (lowered priority) | no: F03.1 + F02.3 |
-| F05.5 local-e2e | T7.3 | Not started (doc drafted, in review) | no: F05.4 + F05.2 + F03.2 + F02.3 + F02.4 |
+| F05.5 local-e2e | T7.3 | Not started | no: F05.4 + F05.2 + F03.2 + F02.3 + F02.4 |
 | Phase 8 (F01.4 gcp-platform, telemetry-pubsub, F05.6, F06.4) | T8.* | Not scheduled | no: local end-to-end green (D5) |
 
 ## 3. Loose ends
@@ -39,14 +39,15 @@ Phases 0–2 are complete. Phase 3 has the API and frontend done; Phases 5 and 6
 - [x] Rerun `make e2e FEATURE=infra-local-platform` and `make e2e FEATURE=infra-local-resources` on `feature/dbt-sessions-funnel`: both 9/9 passed (2026-11-14). F06.2 touches `terraform/envs/local/20-resources/postgres.tf` and the `infra-local-platform` E2E-1 flow, and the reruns were also skipped when telemetry-producer closed (its §7).
 - [x] Fix the cold-broker race in the shared E2E helper and rerun the features that use it. The first F06.2 run on a fresh broker failed its E2E-1 setup with `NOT_COORDINATOR` on the first offset commit while `__consumer_offsets` was being created (E2E-2 passed). `start_group_at_end` in `tests/e2e/e2e_support.py` now retries coordinator errors by code for up to 30 s (librdkafka doesn't flag them retriable on a manual commit). From a fresh `make down`: `dbt-sessions-funnel` 9/9, `ingest-consumer` 6/6, `dbt-foundations` 8/8 (2026-11-14).
 - [x] Remove the stale worktrees and the merged local branches (`dbt-foundations`, `dbt-sessions-funnel`). The remote branches `origin/feature/dbt-foundations` and `origin/feature/dbt-sessions-funnel` are still on GitHub.
+- [ ] Upgrading an environment created before `airflow-local`: its first `make down` fails in `20-resources` (missing `airflow_host_port` in the old `10-platform` state). Run `make up` once first; it refreshes `10-platform`. Seen once on this machine, now resolved.
 
 ## 4. Next steps (priority order)
 
 1. ~~**Merge F06.2 dbt-sessions-funnel**~~ Done 2026-11-14 (#10).
-2. **(Current, in review)** **Write the spec 05 orchestration feature docs.** Drafted on `feature/airflow-local`: F05.2 `ingest-deploy`, F05.3 `airflow-local`, F05.4 `airflow-transform-dag`, F05.5 `local-e2e`. Decisions recorded in `PLAN.md`:
+2. ~~**Write the spec 05 orchestration feature docs.**~~ Done 2026-11-14 (approved, committed `3ff8adf`): F05.2 `ingest-deploy`, F05.3 `airflow-local`, F05.4 `airflow-transform-dag`, F05.5 `local-e2e`. Decisions recorded in `PLAN.md`:
    - **D16:** service containers live in a new `envs/local/30-services` stack (spec 01 §3; F02.3's open item closed).
    - **D17:** Airflow runs dbt with a `BashOperator`, using dbt in its own virtualenv inside the Airflow image, with the project baked in (spec 05 §7).
-3. **F05.3 airflow-local (T7.1).** Creates `30-services`. Done when the Airflow UI opens on `:8080` with metadata in the `airflow` database.
+3. **(Current)** **F05.3 airflow-local (T7.1).** Implemented and green on `feature/airflow-local`; the PR is next (it carries the step 2 docs too). Airflow `3.3.2-python3.12`, `30-services` stack, dbt `1.12.5` in `/opt/dbt-venv`.
 4. **F02.4 store-outbox (T3.7).** Gates the commerce marts.
 5. **F06.3 dbt-commerce-marts (T6.6).**
 6. **F05.4 airflow-transform-dag (T7.2).** `dbt source freshness`, `dbt build` (with tests), run summary; needs F05.3 and F06.3.
@@ -72,3 +73,4 @@ Nothing blocks local work. Open `PLAN.md` §8 entries gate Phase 8 and later onl
 | 2026-11-14 | Step 1: regression reruns green (infra-local-platform, infra-local-resources, ingest-consumer, dbt-foundations); E2E helper cold-broker race fixed; dbt-sessions-funnel 9/9. Branch pushed, PR pending. |
 | 2026-11-14 | Step 1 closed: PR #10 merged (`99604c5`), `main` in sync, worktrees and local branches cleaned. Step 2 started on `feature/airflow-local`. |
 | 2026-11-14 | Step 2 drafted: D16 (`30-services`) and D17 (dbt via `BashOperator` in the Airflow image); specs 01 and 05 updated; feature docs F05.2–F05.5 written; F02.3 and F03.2 point at `30-services`. Awaiting review. |
+| 2026-11-14 | Step 2 approved and pushed (`3ff8adf`). Step 3 (F05.3 airflow-local) implemented: `make e2e FEATURE=airflow-local` 9/9; regressions infra-local-platform 9/9, infra-local-resources 9/9, dbt-foundations 8/8. T7.1 ticked in `PLAN.md`. PR pending. |

@@ -1,6 +1,6 @@
 # Clickstream Pipeline: Master Plan
 
-> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`); T6.4–T6.5 done (`dbt-sessions-funnel`). ✅ marks finished tasks.
+> **Status:** In progress. Phase 0 done (`infra-foundations`); Phase 1 done (`infra-local-platform`, `infra-local-resources`); Phase 2 done (`event-contract`, `telemetry-producer`); T3.1–T3.4 done (`store-api`, `store-frontend`); T5.1, T5.2, T5.4 done (`ingest-consumer`); T6.1–T6.3 done (`dbt-foundations`); T6.4–T6.5 done (`dbt-sessions-funnel`); T7.1 done (`airflow-local`). ✅ marks finished tasks.
 > **Supersedes:** `design_principles_revised_execution_plan.md` and `multi_cloud_architecture_mapping.md`. Those files are kept for history.
 > **Specs:** each architecture layer is defined in `specs/`. This file is the task breakdown and the order the tasks run in.
 
@@ -152,7 +152,7 @@ How to read the tables:
 
 | ID | Task | Spec | Deps | Done when |
 |---|---|---|---|---|
-| T7.1 | `envs/local/30-services` (D16) and `modules/local/airflow`: Airflow containers (LocalExecutor, metadata in the `airflow` database, dbt in the image per D17) | 01, 05 | T1.5 | The Airflow UI opens on `:8080` |
+| T7.1 ✅ | `envs/local/30-services` (D16) and `modules/local/airflow`: Airflow containers (LocalExecutor, metadata in the `airflow` database, dbt in the image per D17) | 01, 05 | T1.5 | The Airflow UI opens on `:8080` |
 | T7.2 | DAG `clickstream_transform`: freshness check, then `dbt build` (models and their tests), then a run summary | 05, 06 | T7.1, T6.6 | The DAG runs green on schedule |
 | T7.3 | Local end-to-end test | all | T7.2, T4.3, T5.3 | Bot traffic shows up in the marts within one DAG cycle |
 
