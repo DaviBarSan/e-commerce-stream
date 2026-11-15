@@ -1,5 +1,6 @@
 """E2E-1: data, run history and task logs survive make stop / make start and an Airflow container replacement."""
 import hashlib
+import os
 import uuid
 
 import pytest
@@ -10,6 +11,11 @@ from e2e_support import (LOCAL_SERVICES, LOCAL_STACKS, REPO_ROOT, AirflowApi, Sh
                          raw_rows, tf_env, wait_container_healthy, wait_for)
 
 ONE_SHOT = ("airflow-init", "store-seed")
+
+
+def host_name(name):
+    """A container path segment as stored on the host: on Windows, Docker Desktop keeps ':' as U+F03A."""
+    return name.replace(":", "\uf03a") if os.name == "nt" else name
 
 
 def env_file_hash():
@@ -87,6 +93,6 @@ def test_task_logs_survive_an_airflow_container_replacement(before):
 
     try_number, events = AirflowApi(before["env"]).task_log(DAG, before["run_id"], "dbt_marts")
     assert (try_number, events) == before["snapshot"]["log"], "the task log changed after the replacement"
-    log_file = (REPO_ROOT / "airflow-logs" / f"dag_id={DAG}" / f"run_id={before['run_id']}" / "task_id=dbt_marts"
-                / f"attempt={try_number}.log")
+    log_file = (REPO_ROOT / "airflow-logs" / f"dag_id={DAG}" / f"run_id={host_name(before['run_id'])}"
+                / "task_id=dbt_marts" / f"attempt={try_number}.log")
     assert log_file.exists(), f"{log_file} is not on the host"

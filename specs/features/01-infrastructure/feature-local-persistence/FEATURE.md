@@ -2,7 +2,7 @@
 
 | Status | Spec | Tasks | Depends on | Phase |
 |---|---|---|---|---|
-| In progress | [01](../../../01-infrastructure.md), [05](../../../05-ingestion-orchestration.md) | T7.4 | infra-local-resources, airflow-local | 7 |
+| Done | [01](../../../01-infrastructure.md), [05](../../../05-ingestion-orchestration.md) | T7.4 | infra-local-resources, airflow-local | 7 |
 
 ## 1. Goal
 Let a developer keep their local data between work sessions. Today the only way to "turn the environment off" is `make down`, which destroys every stack and so drops the `store`, `warehouse` and `airflow` databases. Airflow task logs are even more fragile: they live inside the scheduler container, so any `make up` that replaces it (an image rebuild after a `dbt/` change, a schedule change) loses every past log, although the run history itself is kept in Postgres.
