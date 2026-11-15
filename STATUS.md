@@ -26,7 +26,7 @@ Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `
 | F02.4 store-outbox | T3.7 | Done (merged, #12) | n/a |
 | F06.3 dbt-commerce-marts | T6.6 | Done (merged, #13) | n/a |
 | F05.4 airflow-transform-dag | T7.2 | Done (merged, #16) | n/a |
-| F01.5 local-persistence | T7.4 | Done on `feature/local-persistence` (7/7; regression 31/31), PR not opened yet | n/a |
+| F01.5 local-persistence | T7.4 | Done on `feature/local-persistence` (7/7; regression 31/31), PR #17 open | n/a |
 | F02.3 store-deploy | T3.5, T3.6 | Done (merged, #14) | n/a |
 | F05.2 ingest-deploy | T5.3 | Done (merged, #15) | n/a |
 | F03.1 bot-simulation | T4.1, T4.2 | Not started (lowered priority) | yes |
