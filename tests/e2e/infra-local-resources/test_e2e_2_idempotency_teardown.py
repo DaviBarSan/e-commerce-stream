@@ -1,7 +1,11 @@
-"""E2E-2: `make up` is idempotent, `make down` removes everything, modules/aws validates."""
+"""E2E-2: `make up` is idempotent, `make down` would remove everything, modules/aws validates.
+
+`make down` itself is never run: the destroy plans of the three stacks are checked instead, so the flow never wipes
+local data.
+"""
 import re
 
-from e2e_support import LOCAL_STACKS, REPO_ROOT, docker_names, make, project_prefix, run, tf_env
+from e2e_support import LOCAL_STACKS, REPO_ROOT, docker_names, make, planned_docker_names, project_prefix, run, tf_env
 
 
 def test_second_up_plans_no_changes():
@@ -11,14 +15,16 @@ def test_second_up_plans_no_changes():
         assert stack.plan_exit_code() == 0, f"{stack.dir.name} has pending changes after a second up"
 
 
-def test_down_removes_everything():
-    make("down")
+def test_down_would_remove_everything():
     prefix = project_prefix()
-    for kind in ("container", "network", "volume"):
-        assert docker_names(kind, prefix) == [], f"leftover {kind}s"
-    for stack in LOCAL_STACKS:
-        assert stack.tf("state", "list").stdout.strip() == "", f"{stack.dir.name} state is not empty"
-    assert not (REPO_ROOT / ".env.local").exists(), ".env.local was not removed"
+    plans = {stack.dir.name: stack.destroy_plan() for stack in LOCAL_STACKS}
+    every = [change for changes in plans.values() for change in changes]
+    for kind in ("container", "network", "volume"):  # no project resource is left outside Terraform
+        assert planned_docker_names(every, kind) == set(docker_names(kind, prefix)), f"{kind}s not covered"
+    resources = plans["20-resources"]
+    databases = {c["change"]["before"]["name"] for c in resources if c["type"] == "postgresql_database"}
+    assert databases == {"store", "warehouse", "airflow"}
+    assert any(c["type"] == "local_sensitive_file" for c in resources), ".env.local would not be removed"
 
 
 def test_aws_placeholder_validates():

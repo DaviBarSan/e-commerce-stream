@@ -54,6 +54,7 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
   - **E2E-2: resilience or lifecycle flow.** Failure, restart, idempotency, teardown or contract parity: whichever risk matters most for that feature.
 - **They are the acceptance gate.** A feature is `Done` only when both flows pass through `make e2e FEATURE=<feature-id>`, which runs `uv run pytest tests/e2e/<feature-id>`.
 - **Layout:** one pytest module per flow, `tests/e2e/<feature-id>/test_e2e_1_<slug>.py` and `test_e2e_2_<slug>.py`. Shell steps go through `subprocess`.
+- **E2E flows never destroy.** No flow runs `make down` or a Terraform destroy: the local environment holds the developer's data. Flows start from `make up` (idempotent), and teardown is checked on `terraform plan -destroy` (`Stack.destroy_plan()` in `tests/e2e/e2e_support.py`).
 - **No scattered runtime checks during development.** Don't run many one-off commands or poke containers by hand to "see if it works". Automate the check as one of the two flows, then run it.
 - **Unit tests are optional**, and only for pure logic (schema validation, session math, and so on). They don't replace the E2E flows.
 - **Validate data once, at the boundary.**
@@ -96,7 +97,8 @@ Status values: `Not started` → `In progress` → `Done` (or `Blocked: <reason>
 | Command | Purpose |
 |---|---|
 | `make doctor` | Check the tool versions |
-| `make up ENV=local` / `make down ENV=local` | Create or destroy an environment (both local stacks in order) |
+| `make up ENV=local` / `make down ENV=local` | Create or destroy an environment (every local stack in order). `make down` deletes all data |
+| `make stop` / `make start` | Pause or resume the local containers, keeping all data (F01.5) |
 | `make plan ENV=local` | Show planned infrastructure changes |
 | `make env ENV=local` | Write `.env.local` from the Terraform outputs |
 | `make smoke ENV=local` | Platform smoke test |

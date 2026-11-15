@@ -14,8 +14,7 @@ EXPECTED_TOPICS = {  # name -> (partitions, retention hours), spec 01 §5
 
 @pytest.fixture(scope="module")
 def env():
-    make("down")
-    make("up")
+    make("up")  # idempotent: keeps the developer's data (E2E flows never destroy)
     return read_env_file(REPO_ROOT / ".env.local")
 
 

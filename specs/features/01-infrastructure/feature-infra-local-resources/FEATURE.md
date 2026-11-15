@@ -58,15 +58,15 @@
 
 ## 5. E2E test flows
 **E2E-1: the whole local environment comes up.**
-1. Run `make down && make up ENV=local`.
+1. Run `make up ENV=local` (idempotent; the flow never destroys, `CLAUDE.md` §3).
 2. The topics exist with the right partitions and retention.
 3. The databases, schemas and roles exist, and grants are enforced: `dbt_runner` can't write to `raw`, and `ingest_writer` can't read `marts`.
 4. `.env.local` contains every contract key.
 5. `make smoke` exits 0.
 
-**E2E-2: idempotency and teardown.**
-1. Run `make up` a second time. Both stacks plan **no changes**.
-2. Run `make down`. The resources are destroyed in reverse order, and no project containers, networks or state resources remain.
+**E2E-2: idempotency and teardown.** `make down` is never run: its effect is checked on the stacks' destroy plans.
+1. Run `make up` a second time. Every stack plans **no changes**.
+2. The destroy plans of the three stacks together cover every project container, network and volume in Docker (nothing lives outside Terraform), drop the `store`, `warehouse` and `airflow` databases, and remove `.env.local`.
 3. `terraform validate` passes for `modules/aws`.
 
 ## 6. Definition of done

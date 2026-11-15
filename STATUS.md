@@ -2,11 +2,11 @@
 
 Living snapshot of where development stands and what comes next. Update it in the same change that moves a feature's status. `PLAN.md` and the `FEATURE.md` files stay the source of truth (`CLAUDE.md` §1); this file only summarizes them.
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-15
 
 ## 1. Summary
 
-Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `make up`, #14); Phase 5 is done (the consumer runs as a container, #15); Phase 6 is done (#13); Phase 7 has Airflow (T7.1, #11) and the transform DAG (T7.2, PR #16); only the local end-to-end run (T7.3) remains. The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
+Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `make up`, #14); Phase 5 is done (the consumer runs as a container, #15); Phase 6 is done (#13); Phase 7 has Airflow (T7.1, #11) and the transform DAG (T7.2, #16); local persistence (T7.4) is being planned, and the local end-to-end run (T7.3) remains. The MVP gate (T7.3, the local end-to-end run) is still several features away. Priority for the remaining local work: **orchestration (Airflow) first, traffic bots last** before T7.3.
 
 ## 2. Feature board
 
@@ -25,7 +25,8 @@ Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `
 | F05.3 airflow-local | T7.1 | Done (merged, #11) | n/a |
 | F02.4 store-outbox | T3.7 | Done (merged, #12) | n/a |
 | F06.3 dbt-commerce-marts | T6.6 | Done (merged, #13) | n/a |
-| F05.4 airflow-transform-dag | T7.2 | Done on `feature/airflow-transform-dag` (7/7), PR #16 open | n/a |
+| F05.4 airflow-transform-dag | T7.2 | Done (merged, #16) | n/a |
+| F01.5 local-persistence | T7.4 | Not started: feature doc drafted on `feature/local-persistence`, awaiting approval | yes |
 | F02.3 store-deploy | T3.5, T3.6 | Done (merged, #14) | n/a |
 | F05.2 ingest-deploy | T5.3 | Done (merged, #15) | n/a |
 | F03.1 bot-simulation | T4.1, T4.2 | Not started (lowered priority) | yes |
@@ -52,9 +53,10 @@ Phases 0–2 are complete. Phase 3 is done (the store runs as containers under `
 5. ~~**F06.3 dbt-commerce-marts (T6.6).**~~ Done 2026-11-14 (#13).
 6. ~~**F02.3 store-deploy (T3.5, T3.6).**~~ Done 2026-11-14 (#14). The storefront on `:3000` and the API on `:8000` under `make up`.
 7. ~~**F05.2 ingest-deploy (T5.3).**~~ Done 2026-11-14 (#15). clicks reach `raw.clickstream_events` without a host process.
-8. **(Current)** **F05.4 airflow-transform-dag (T7.2).** Implemented and green on `feature/airflow-transform-dag`; PR #16 open. freshness check, one `dbt build` task per layer, run summary, and per-run dbt artifacts in `airflow-runs/` (owner's choice, for debugging).
-9. **F03.1 bot-simulation (T4.1, T4.2)**, then **F03.2 bot-deploy (T4.3)**. Suggested default for spec 03 §10: API mode only.
-10. **F05.5 local-e2e (T7.3).** The MVP gate; opens Phase 8 (D5).
+8. ~~**F05.4 airflow-transform-dag (T7.2).**~~ Done 2026-11-14 (#16). freshness check, one `dbt build` task per layer, run summary, and per-run dbt artifacts in `airflow-runs/` (owner's choice, for debugging).
+9. **(Current)** **F01.5 local-persistence (T7.4).** `make stop` / `make start` and Airflow task logs on the host, so local data survives between work sessions (owner's request, 2026-11-15).
+10. **F03.1 bot-simulation (T4.1, T4.2)**, then **F03.2 bot-deploy (T4.3)**. Suggested default for spec 03 §10: API mode only.
+11. **F05.5 local-e2e (T7.3).** The MVP gate; opens Phase 8 (D5).
 
 ### Notes on the order
 

@@ -96,7 +96,7 @@ How to read the tables:
 | T1.6 ✅ | Environment contract outputs and `.env` generation (`local_file`) | 01 | T1.5 | `make env ENV=local` writes `.env.local` with every contract key |
 | T1.7 ✅ | `modules/aws` placeholder (variables and outputs only) | 01 | T1.6 | `terraform validate` passes and no resources are declared |
 | T1.8 ✅ | Smoke test: produce and consume one event, and run a round-trip query on Postgres | 01 | T1.6 | `make smoke ENV=local` exits 0 |
-| T1.9 ✅ | Teardown check | 01 | T1.8 | `make down ENV=local` leaves no containers, networks or volumes (unless kept on purpose) |
+| T1.9 ✅ | Teardown check | 01 | T1.8 | `make down ENV=local` would leave no containers, networks or volumes (unless kept on purpose), checked on the destroy plan |
 
 ### Phase 2: Clickstream contract and telemetry library
 
@@ -155,6 +155,7 @@ How to read the tables:
 | T7.1 ✅ | `envs/local/30-services` (D16) and `modules/local/airflow`: Airflow containers (LocalExecutor, metadata in the `airflow` database, dbt in the image per D17) | 01, 05 | T1.5 | The Airflow UI opens on `:8080` |
 | T7.2 ✅ | DAG `clickstream_transform`: freshness check, then `dbt build` (models and their tests), then a run summary | 05, 06 | T7.1, T6.6 | The DAG runs green on schedule |
 | T7.3 | Local end-to-end test | all | T7.2, T4.3, T5.3 | Bot traffic shows up in the marts within one DAG cycle |
+| T7.4 | Local persistence: `make stop` / `make start`, and Airflow task logs on the host (`airflow-logs/`) | 01, 05 | T7.1 | Databases, Airflow run history and task logs survive `make stop` / `make start` and an Airflow container replacement |
 
 ### Phase 8: GCP rollout (starts after T7.3)
 

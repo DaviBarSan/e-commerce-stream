@@ -43,7 +43,7 @@ define TF
 tf() { terraform -chdir="$$1" "$${@:2}" || { echo "terraform: $$1 failed, retrying once in 5s" >&2; sleep 5; terraform -chdir="$$1" "$${@:2}"; }; }
 endef
 
-.PHONY: help doctor init plan up down env smoke dbt e2e fmt validate
+.PHONY: help doctor init plan up down stop start env smoke dbt e2e fmt validate
 
 help: ## List the targets
 	@echo "Usage: make <target> [ENV=local|gcp|aws] [FEATURE=<feature-id>]   (ENV defaults to local)"
@@ -65,12 +65,25 @@ up: ## Apply every stack of ENV in order (writes .env.<ENV>)
 	@$(TF); for s in $(STACKS); do terraform -chdir=$$s init -input=false && tf $$s apply -input=false -auto-approve; done
 	@echo "up: $(ENV_FILE) written"
 
-down: ## Destroy every stack of ENV in reverse order (full reset)
+down: ## Destroy every stack of ENV in reverse order (full reset: deletes all databases)
 	@$(require_stacks)
 	@$(TF); for s in $(REVERSED_STACKS); do \
 	  if ! terraform -chdir=$$s state list 2>/dev/null | grep -q .; then echo "down: $$s has no resources, skipping"; continue; fi; \
 	  tf $$s destroy -input=false -auto-approve; \
 	done
+
+# F01.5: pause and resume without destroying anything (data, Airflow history and logs are kept).
+define require_local
+[ "$(ENV)" = local ] || { echo "$@: not supported for ENV=$(ENV) (local only)" >&2; exit 1; }
+endef
+
+stop: ## Stop every local container, keeping all data (resume with make start)
+	@$(require_local)
+	@bash scripts/local_lifecycle.sh stop
+
+start: ## Start the local containers stopped by make stop
+	@$(require_local)
+	@bash scripts/local_lifecycle.sh start
 
 env: ## Regenerate .env.<ENV> from the stack outputs
 	@$(require_stacks)

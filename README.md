@@ -36,7 +36,8 @@ make help     # lists the targets
 | Command | Purpose |
 |---|---|
 | `make doctor` | Check the tool versions |
-| `make up ENV=local` / `make down ENV=local` | Create or destroy an environment |
+| `make up ENV=local` / `make down ENV=local` | Create or destroy an environment (`make down` deletes all data) |
+| `make stop` / `make start` | Pause or resume the local containers, keeping all data |
 | `make plan ENV=local` | Show planned infrastructure changes |
 | `make env ENV=local` | Write `.env.local` from the Terraform outputs |
 | `make smoke ENV=local` | Platform smoke test |
