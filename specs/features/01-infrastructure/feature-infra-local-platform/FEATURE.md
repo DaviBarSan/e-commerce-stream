@@ -45,17 +45,17 @@ Use Terraform (docker provider) to bring up the local runtime platform: the Dock
 
 ## 5. E2E test flows
 **E2E-1: platform comes up and can be reached.**
-1. Apply `envs/local/10-platform`.
+1. Run `make up` (idempotent; the flow never destroys, `CLAUDE.md` §3).
 2. Every container reports healthy.
 3. From the host, a Kafka admin client can list the cluster metadata on `127.0.0.1:9092`. Host-facing endpoints use `127.0.0.1`, not `localhost`: the ports are bound to IPv4 only, and `localhost` resolves to `::1` first, which stalls clients on Windows.
 4. A throwaway container on `${project_name}-net` reaches `kafka:19092`.
 5. The Kafka UI returns HTTP 200 on `:8085`.
 6. A Postgres client on the host connects to `localhost:<postgres_port>` with the admin outputs and runs `SELECT 1`.
 
-**E2E-2: lifecycle.**
-1. Apply (if needed), then plan again. The plan shows **no changes**.
-2. Destroy the stack. No containers or networks with the project prefix remain.
-3. The `pgdata` volume is removed, unless the variable `keep_data = true` is set, in which case it's kept and reused on the next apply.
+**E2E-2: lifecycle.** Nothing is destroyed: teardown is checked on `terraform plan -destroy`.
+1. Run `make up`, then plan `10-platform` again. The plan shows **no changes**.
+2. The destroy plan deletes the three platform containers, the project network and the `pgdata` volume (`keep_data` defaults to `false`).
+3. With `keep_data = true`, a plan from an empty scratch state (as after a destroy) declares no volume, mounts the existing `pgdata` volume by name, and sets the admin password with `ALTER USER`, so the reused data directory accepts the new state's password.
 
 ## 6. Definition of done
 Both flows pass through `make e2e FEATURE=infra-local-platform`, and `terraform fmt` and `validate` are clean.

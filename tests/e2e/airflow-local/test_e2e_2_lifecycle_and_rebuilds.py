@@ -1,10 +1,13 @@
-"""E2E-2: DAG discovery, metadata surviving a restart, idempotent applies, dbt-driven rebuilds and teardown."""
+"""E2E-2: DAG discovery, metadata surviving a restart, idempotent applies, dbt-driven rebuilds and teardown.
+
+Teardown is checked on the destroy plan; nothing is destroyed, so the flow never wipes local data.
+"""
 import uuid
 
 import pytest
 
 from e2e_support import (LOCAL_PLATFORM, LOCAL_RESOURCES, LOCAL_SERVICES, LOCAL_STACKS, REPO_ROOT, AirflowApi,
-                         airflow_container, docker_names, local_env, make, project_prefix, run,
+                         airflow_container, local_env, make, planned_docker_names, project_prefix, run,
                          wait_container_healthy, wait_for)
 
 PROBE_DAG = '''"""Temporary DAG written by the airflow-local E2E-2 flow; it removes this file itself."""
@@ -85,12 +88,8 @@ def test_a_dbt_change_rebuilds_only_airflow():
         make("up")  # back to the committed project
 
 
-def test_down_removes_airflow_and_everything_else():
-    make("down")
-    prefix = project_prefix()
-    for kind in ("container", "network", "volume"):
-        assert docker_names(kind, prefix) == [], f"leftover {kind}s"
-    images = run(["docker", "images", "--format", "{{.Repository}}:{{.Tag}}"], check=True).stdout.split()
-    assert f"{prefix}airflow:local" not in images, "the Airflow image was not removed"
-    for stack in LOCAL_STACKS:
-        assert stack.tf("state", "list").stdout.strip() == "", f"{stack.dir.name} state is not empty"
+def test_down_would_remove_airflow_and_its_image():
+    changes = LOCAL_SERVICES.destroy_plan()
+    airflow = {airflow_container(c) for c in ("init", "api-server", "scheduler", "dag-processor")}
+    assert airflow <= planned_docker_names(changes, "container"), "Airflow containers missing from the destroy plan"
+    assert f"{project_prefix()}airflow:local" in planned_docker_names(changes, "image"), "the image would be kept"

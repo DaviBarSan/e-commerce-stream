@@ -9,8 +9,7 @@ from e2e_support import (CONTRACT_KEYS, LOCAL_PLATFORM, REPO_ROOT, AirflowApi, a
 
 @pytest.fixture(scope="module")
 def env():
-    make("down")
-    make("up")
+    make("up")  # idempotent: keeps the developer's data (E2E flows never destroy)
     return read_env_file(REPO_ROOT / ".env.local")
 
 

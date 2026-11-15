@@ -85,6 +85,7 @@ Inserts use `ON CONFLICT (event_id) DO NOTHING`, so broker redelivery and retrie
 | Containers | `airflow-init` (one-shot `airflow db migrate`), `api-server` (UI and REST API) on port 8080, `scheduler`, `dag-processor` |
 | Auth | Simple auth manager with one `admin` user; the password is `AIRFLOW_ADMIN_PASSWORD` from the contract |
 | DAGs | `dags/` bind-mounted into the containers |
+| Logs | Task and DAG processor logs bind-mounted to the host's `airflow-logs/` (scheduler, API server, DAG processor), so they survive container replacement (F01.5) |
 | dbt execution | **`BashOperator` running `/opt/dbt-venv/bin/dbt` inside the Airflow containers (D17).** The project is at `/opt/dbt` in the image, with its packages installed at build time; each run writes its artifacts to a per-run target path, never into the image's project folder. |
 
 Portability rule: only core operators (Bash and Python). **No Composer- or MWAA-specific hooks, and no `DockerOperator`** (D17).

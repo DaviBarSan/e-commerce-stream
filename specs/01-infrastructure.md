@@ -138,7 +138,8 @@ Free-tier guardrails:
 | `make init ENV=local` | Runs `terraform init` on every stack for that environment |
 | `make plan ENV=local` | Runs `plan` on every stack |
 | `make up ENV=local` | Applies `10-platform`, `20-resources` (which writes `.env.local`) and `30-services` |
-| `make down ENV=local` | Destroys in reverse order |
+| `make down ENV=local` | Destroys in reverse order: a full reset that deletes every database. The host folders `airflow-runs/` and `airflow-logs/` are kept |
+| `make stop` / `make start` | Local only (F01.5). `stop` stops every project container (services first, then the platform) and keeps containers, volumes and state; `start` starts the platform, waits for it to be healthy, then the long-running services. Data, Airflow history and logs survive, as they do a PC shutdown |
 | `make env ENV=local` | Writes `.env.local` from the `20-resources` outputs |
 | `make smoke ENV=local` | Runs `scripts/smoke` |
 | `make fmt` / `make validate` | Runs `terraform fmt -recursive` / `validate` on every stack |
@@ -151,7 +152,7 @@ Free-tier guardrails:
 2. The Kafka broker can be reached from the host and from a container on the platform network.
 3. The topics and databases exist exactly as described in §5.
 4. `make smoke` produces and consumes one message and writes and reads one row in Postgres.
-5. `make down` removes all resources. Running `make up` again is idempotent: the second apply shows no changes.
+5. `make down` removes all resources. Running `make up` again is idempotent: the second apply shows no changes. E2E flows check the teardown on `terraform plan -destroy` and never run it (`CLAUDE.md` §3).
 6. `terraform validate` passes for `modules/aws`.
 
 ## 11. Open items

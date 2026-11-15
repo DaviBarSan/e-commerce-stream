@@ -6,7 +6,7 @@ import pytest
 from e2e_support import REPO_ROOT, run
 
 # Targets required by spec 01 §9, plus e2e.
-EXPECTED_TARGETS = ["help", "doctor", "init", "plan", "up", "down", "env", "smoke", "fmt", "validate", "e2e"]
+EXPECTED_TARGETS = ["help", "doctor", "init", "plan", "up", "down", "stop", "start", "env", "smoke", "fmt", "validate", "e2e"]
 
 
 @pytest.fixture

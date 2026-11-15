@@ -63,9 +63,6 @@ class Stack:
     def apply(self, env=None):
         return self.tf("apply", "-input=false", "-auto-approve", env=env)
 
-    def destroy(self, env=None):
-        return self.tf("destroy", "-input=false", "-auto-approve", env=env)
-
     def plan_exit_code(self, env=None):
         """0 = no changes, 2 = changes pending. A plan error (exit 1) raises with Terraform's output."""
         args = ("plan", "-input=false", "-no-color", "-detailed-exitcode")
@@ -76,9 +73,36 @@ class Stack:
             raise AssertionError(f"plan failed in {self.dir}\n{result.stdout}\n{result.stderr}")
         return result.returncode
 
+    def plan_json(self, *plan_args, env=None):
+        """`terraform show -json` of a saved plan; nothing is applied."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "e2e.tfplan"
+            args = ("plan", "-input=false", "-no-color", f"-out={out}", *plan_args)
+            result = self.tf(*args, env=env, check=False)
+            if result.returncode != 0 and "broker not connected" in result.stderr:
+                result = self.tf(*args, env=env, check=False)  # same one retry as the Makefile's tf()
+            if result.returncode != 0:
+                raise AssertionError(f"plan failed in {self.dir}\n{result.stdout}\n{result.stderr}")
+            return json.loads(self.tf("show", "-json", str(out), env=env).stdout)
+
+    def destroy_plan(self, env=None):
+        """Resources `terraform destroy` would delete, from `plan -destroy`.
+
+        E2E flows never destroy (they would wipe the developer's local data); teardown is checked on the plan.
+        """
+        changes = self.plan_json("-destroy", env=env).get("resource_changes", [])
+        return [c for c in changes if "delete" in c["change"]["actions"]]
+
     def outputs(self, env=None):
         raw = json.loads(self.tf("output", "-json", env=env).stdout)
         return {name: item["value"] for name, item in raw.items()}
+
+
+def planned_docker_names(changes, kind):
+    """Names of the Docker containers/networks/volumes/images in a list of plan resource changes."""
+    return {c["change"]["before"]["name"] for c in changes if c["type"] == f"docker_{kind}"}
 
 
 def docker_names(kind, prefix):
@@ -586,7 +610,7 @@ class AirflowApi:
         import httpx
 
         self._token = self._token or self.token()
-        headers = {"Authorization": f"Bearer {self._token}"}
+        headers = {"Authorization": f"Bearer {self._token}", **kwargs.pop("headers", {})}
         return httpx.request(method, f"{self.url}/api/v2{path}", headers=headers, timeout=30, **kwargs)
 
     def health(self):
@@ -642,6 +666,16 @@ class AirflowApi:
 
         path = f"/dags/{dag_id}/dagRuns/{quote(run_id, safe='')}/taskInstances/{task_id}/xcomEntries/{key}"
         return self._ok("GET", path, params={"deserialize": True})["value"]
+
+    def task_log(self, dag_id, run_id, task_id):
+        """(try_number, log events) of a task's latest try, as the API returns them; source headers are dropped."""
+        from urllib.parse import quote
+
+        base = f"/dags/{dag_id}/dagRuns/{quote(run_id, safe='')}/taskInstances/{task_id}"
+        try_number = self._ok("GET", base)["try_number"]
+        body = self._ok("GET", f"{base}/logs/{try_number}", headers={"Accept": "application/json"})
+        events = [e for e in body["content"] if not (isinstance(e, dict) and "sources" in e)]
+        return try_number, events
 
     def clear(self, dag_id, run_id, task_id):
         """Clear one task and its downstream tasks, so the run resumes from that task."""
@@ -774,3 +808,32 @@ def parse_ts(value):
     from datetime import datetime
 
     return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
+
+
+# --- make stop / make start (local-persistence) ------------------------------------------------
+
+def project_containers(running_only=False):
+    """Names of the project's Terraform-managed containers (all of them, or only the running ones)."""
+    project = project_prefix()[:-1]
+    cmd = ["docker", "ps", "--filter", f"label=project={project}", "--filter", "label=managed_by=terraform",
+           "--format", "{{.Names}}"]
+    if not running_only:
+        cmd.insert(2, "-a")
+    return sorted(run(cmd, check=True).stdout.split())
+
+
+def inspect(container, template):
+    return run(["docker", "inspect", "-f", template, container], check=True).stdout.strip()
+
+
+def long_running_containers():
+    """Project containers with a restart policy; the one-shot ones (airflow-init, store-seed) have none."""
+    return [c for c in project_containers() if inspect(c, "{{.HostConfig.RestartPolicy.Name}}") == "unless-stopped"]
+
+
+def persisted_counts(env):
+    """Row counts across the store, raw and the marts, to compare before and after a stop."""
+    store = warehouse_query(env, "select count(*) as n from orders", dsn_key="STORE_DB_DSN")[0]["n"]
+    raw = warehouse_query(env, f"select count(*) as n from {env['WAREHOUSE_RAW_SCHEMA']}.clickstream_events",
+                          dsn_key="WAREHOUSE_DSN")[0]["n"]
+    return {"store_orders": store, "raw_events": raw, **mart_counts(env)}

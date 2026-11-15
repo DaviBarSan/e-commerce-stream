@@ -46,7 +46,7 @@ Provision the GCP environment behind the same environment contract as local, so 
 
 **E2E-2: contract parity and teardown.**
 1. The key sets of `.env.gcp` and `.env.local` are identical.
-2. `make down ENV=gcp` removes everything except the state bucket.
+2. The destroy plan of the gcp stack covers every resource except the state bucket (`make down` itself is never run by an E2E flow, `CLAUDE.md` §3).
 
 ## 6. Definition of done
 Both flows pass, and no resource falls outside the free-tier guardrails in spec 01 §6.

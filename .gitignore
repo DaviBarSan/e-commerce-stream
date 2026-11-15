@@ -29,3 +29,10 @@ dbt/.user.yml
 # Per-run dbt artifacts from the Airflow DAG (F05.4); the folder itself is kept by .gitkeep
 airflow-runs/*
 !airflow-runs/.gitkeep
+
+# Airflow task logs (F01.5), bind-mounted so they survive container replacement; kept by .gitkeep
+airflow-logs/*
+!airflow-logs/.gitkeep
+
+# Personal local how-to (not part of the docs)
+HOWTO.txt

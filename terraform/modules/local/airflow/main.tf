@@ -47,6 +47,8 @@ locals {
 
   dags_dir = "${var.repo_root}/dags"
   runs_dir = "${var.repo_root}/airflow-runs"
+  # Task and DAG processor logs on the host, so they outlive container replacement (F01.5).
+  logs_dir = "${var.repo_root}/airflow-logs"
 }
 
 # Shared secrets: every Airflow component must see the same values.
@@ -133,6 +135,13 @@ resource "docker_container" "api_server" {
     ip       = "127.0.0.1"
   }
 
+  # The scheduler writes task logs, the API server reads them from disk, the DAG processor writes its own (F01.5).
+  mounts {
+    type   = "bind"
+    source = local.logs_dir
+    target = "/opt/airflow/logs"
+  }
+
   healthcheck {
     test         = ["CMD-SHELL", "curl --fail --silent http://localhost:8080/api/v2/monitor/health > /dev/null"]
     interval     = "10s"
@@ -180,6 +189,13 @@ resource "docker_container" "scheduler" {
     target = "/opt/airflow/dbt-runs"
   }
 
+  # The scheduler writes task logs, the API server reads them from disk, the DAG processor writes its own (F01.5).
+  mounts {
+    type   = "bind"
+    source = local.logs_dir
+    target = "/opt/airflow/logs"
+  }
+
   healthcheck {
     test         = ["CMD-SHELL", "curl --fail --silent http://localhost:8974/health > /dev/null"]
     interval     = "10s"
@@ -218,6 +234,13 @@ resource "docker_container" "dag_processor" {
     source    = local.dags_dir
     target    = "/opt/airflow/dags"
     read_only = true
+  }
+
+  # The scheduler writes task logs, the API server reads them from disk, the DAG processor writes its own (F01.5).
+  mounts {
+    type   = "bind"
+    source = local.logs_dir
+    target = "/opt/airflow/logs"
   }
 
   healthcheck {

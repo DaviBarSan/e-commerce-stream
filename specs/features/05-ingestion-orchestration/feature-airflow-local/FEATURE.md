@@ -89,7 +89,7 @@ Run Airflow locally under `make up`, managed by Terraform, with its metadata in 
 2. Restarting the scheduler container (`docker restart`) brings it back healthy, and the DAG's paused state set before the restart is kept (metadata persists in Postgres).
 3. A second `make up` plans no changes in any stack.
 4. Changing a file under `dbt/models/` and running `make up` rebuilds the Airflow image and replaces only the Airflow containers; `10-platform` and `20-resources` report no changes.
-5. `make down` leaves no Airflow container or image, and then no project container, network or volume.
+5. The `30-services` destroy plan deletes every Airflow container and the Airflow image (`make down` itself is never run, `CLAUDE.md` §3; the other stacks' teardown is covered by `infra-local-resources`).
 
 ## 6. Definition of done
 Both flows pass through `make e2e FEATURE=airflow-local`. `make fmt` and `make validate` pass on all three stacks. The flows of `infra-local-platform` and `infra-local-resources` are rerun and pass (this feature changes both stacks and the Makefile).
